@@ -1,0 +1,123 @@
+import type { VehicleType } from '@/types';
+
+export const CHINESE_PORTS = [
+  'Guangzhou',
+  'Shanghai',
+  'Tianjin',
+  'Qingdao',
+  'Ningbo-Zhoushan',
+  'Shenzhen',
+  'Dalian',
+] as const;
+
+export const DESTINATION_PORTS = [
+  { name: 'Tema, Ghana', code: 'GHA', freightBase: 3200, currency: 'USD' },
+  { name: 'Lagos (Apapa), Nigeria', code: 'NGA', freightBase: 3500, currency: 'USD' },
+  { name: 'Lomé, Togo', code: 'TGO', freightBase: 3100, currency: 'USD' },
+  { name: "Abidjan, Côte d'Ivoire", code: 'CIV', freightBase: 3400, currency: 'USD' },
+  { name: 'Tema, Ghana (RoRo)', code: 'GHA-RORO', freightBase: 2700, currency: 'USD' },
+] as const;
+
+export const VEHICLE_TYPE_LABELS: Record<string, string> = {
+  ICE: 'ICE (Petrol/Diesel)',
+  Hybrid: 'Hybrid (HEV)',
+  PHEV: 'Plug-in Hybrid (PHEV)',
+  EREV: 'Range Extender (EREV)',
+  EV: 'Pure Electric (EV)',
+};
+
+export const VEHICLE_TYPE_SHORT: Record<string, string> = {
+  ICE: 'ICE',
+  Hybrid: 'HEV',
+  PHEV: 'PHEV',
+  EREV: 'EREV',
+  EV: 'EV',
+};
+
+export const VEHICLE_TYPE_COLORS: Record<string, string> = {
+  ICE: 'bg-slate-100 text-slate-700 border-slate-300',
+  Hybrid: 'bg-blue-50 text-blue-700 border-blue-300',
+  PHEV: 'bg-cyan-50 text-cyan-700 border-cyan-300',
+  EREV: 'bg-teal-50 text-teal-700 border-teal-300',
+  EV: 'bg-emerald-50 text-emerald-700 border-emerald-300',
+};
+
+export const POWERTRAIN_GROUPS: { label: string; value: string; types: VehicleType[] }[] = [
+  { label: 'ICE (Petrol/Diesel)', value: 'ICE', types: ['ICE'] },
+  { label: 'Hybrid (HEV)', value: 'Hybrid', types: ['Hybrid'] },
+  { label: 'Plug-in Hybrid (PHEV)', value: 'PHEV', types: ['PHEV'] },
+  { label: 'Range Extender (EREV)', value: 'EREV', types: ['EREV'] },
+  { label: 'Pure Electric (EV)', value: 'EV', types: ['EV'] },
+];
+
+export const YEAR_RANGE = { min: 2016, max: 2026 };
+
+export const MAKES = [
+  'BYD', 'Tesla', 'NIO', 'Li Auto', 'Xpeng', 'Aito', 'Toyota', 'Honda',
+  'BMW', 'Mercedes-Benz', 'Audi', 'Chery', 'Geely', 'Haval', 'GAC',
+  'SAIC (MG)', 'Peugeot', 'Volkswagen', 'Hyundai', 'Kia', 'Zeekr',
+  'Changan', 'Great Wall', 'Mazda', 'Nissan',
+];
+
+export const CHARGING_ADVICE: Record<string, string> = {
+  'CCS2': 'Compatible with standard DC fast chargers arriving in Ghana and Nigeria. CCS2 is the emerging standard in West Africa — you can charge at newly installed stations in Accra and Lagos.',
+  'CCS2 / CHAdeMO': 'Dual-compatible. CCS2 is the West Africa standard; CHAdeMO adapters are available but increasingly rare. Prioritize CCS2 infrastructure.',
+  'CCS2 / GB/T': 'Chinese GB/T standard. You will need a GB/T-to-CCS2 adapter for West African charging infrastructure. Budget ~$300-500 for the adapter.',
+  'GB/T': 'Chinese-only standard. Requires a GB/T-to-CCS2 adapter for all West African charging. Home AC charging via standard outlet works with a portable charger.',
+  'NIO Swap/CCS2': 'NIO battery swap not available in West Africa. Use CCS2 DC fast charging instead. 10-80% charge in ~30 minutes at 100kW+ stations.',
+  'Tesla CCS2': 'Tesla Giga Shanghai models use standard CCS2 in China. Fully compatible with West African CCS2 infrastructure. Tesla Superchargers not available in region.',
+  'AC Level 2': 'Home/workplace AC charging only. No DC fast charging. A 7kW home charger (Type 2) gives a full charge overnight — ideal for PHEVs and EREVs.',
+  'AC Level 1': 'Standard wall outlet charging only. Very slow (~15-20 hours for full charge). Suitable only for plug-in hybrids with small batteries.',
+};
+
+export const SOH_RATING = (soh: number | null): { label: string; color: string; description: string } => {
+  if (soh === null) return { label: 'N/A', color: 'text-slate-400', description: 'Not applicable — this vehicle does not have a traction battery.' };
+  if (soh >= 90) return { label: 'Excellent', color: 'text-emerald-600', description: 'Battery is in near-new condition with minimal degradation.' };
+  if (soh >= 80) return { label: 'Very Good', color: 'text-green-600', description: 'Battery health is strong. Expect 85-90% of original range.' };
+  if (soh >= 70) return { label: 'Good', color: 'text-amber-600', description: 'Moderate degradation. Range reduced but fully usable for daily driving.' };
+  if (soh >= 60) return { label: 'Fair', color: 'text-amber-600', description: 'Significant degradation. Consider battery replacement budget.' };
+  return { label: 'Poor', color: 'text-red-600', description: 'Battery replacement recommended. Factor $3,000-8,000 into your budget.' };
+};
+
+export const RHD_WARNING = 'Ghana drives on the right (RHD). Most Chinese vehicles are LHD. Converting to RHD costs $2,000-5,000 and takes 2-4 weeks. Some buyers accept LHD for private use, but it is illegal for commercial/taxi use in Ghana.';
+
+export const MONETIZATION_FEATURES = [
+  {
+    title: 'Listing Fees & Premium Placement',
+    description: 'Marketers pay a flat fee per listing (e.g. $15-25). Premium placement puts their vehicle at the top of browse results and on the homepage featured carousel.',
+    icon: 'TrendingUp',
+  },
+  {
+    title: 'CIF & Import Service Commission',
+    description: "Chin-go-man partners with licensed clearing agents. We charge 2-4% on shipping, customs clearance, and delivery to the buyer's location in Ghana or Nigeria.",
+    icon: 'Ship',
+  },
+  {
+    title: 'Verified Inspection & Escrow Fees',
+    description: 'Buyers pay $50-100 for a verified port inspection report. Escrow service holds funds until the vehicle clears customs — we charge 1-1.5% of the transaction value.',
+    icon: 'ShieldCheck',
+  },
+];
+
+export const TRUST_FEATURES = [
+  {
+    title: 'Verified Port Inspections',
+    description: 'Every vehicle is inspected by certified companies (SGS, TÜV, CMA) at the Chinese departure port before shipping. Full 50-point report with photos.',
+    icon: 'ClipboardCheck',
+  },
+  {
+    title: 'Escrow Payment Protection',
+    description: 'Your money is held in escrow until the vehicle arrives and passes inspection at the destination port. Release funds only when you are satisfied.',
+    icon: 'Lock',
+  },
+  {
+    title: 'Battery SOH Transparency',
+    description: 'For EVs and hybrids, we report the Battery State of Health (SOH) percentage so you know exactly how much capacity remains before you buy.',
+    icon: 'BatteryCharging',
+  },
+  {
+    title: 'Verified Marketer Profiles',
+    description: 'Marketers are identity-verified with Ghana Card or NIN. Ratings and reviews from past buyers are visible on every profile.',
+    icon: 'BadgeCheck',
+  },
+];

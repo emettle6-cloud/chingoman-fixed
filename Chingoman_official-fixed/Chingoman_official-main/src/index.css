@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  @keyframes fade-in-slow {
+    0% { opacity: 0; }
+    100% { opacity: 0.25; }
+  }
+  .animate-fade-in-slow {
+    animation: fade-in-slow 2s ease-in-out forwards;
+  }
+}
