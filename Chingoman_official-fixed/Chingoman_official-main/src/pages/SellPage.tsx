@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   UserCheck, Store, ArrowRight, CheckCircle2, Info, Ship, FileText,
   Lock, BadgeCheck, Upload, AlertTriangle,
@@ -22,6 +22,10 @@ export function SellPage() {
     steeringSide: 'LHD', price: '', mileage: '', color: '',
     portChina: 'Guangzhou', description: '',
   });
+  const [inspectionFile, setInspectionFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function startFlow(r: Role) {
     if (!user) { setAuthOpen(true); return; }
@@ -31,8 +35,33 @@ export function SellPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !profile) return;
+    setSubmitError(null);
 
-    const { data: vehicle } = await supabase.from('vehicles').insert({
+    if (!inspectionFile) {
+      setSubmitError('Please upload an inspection report before submitting.');
+      return;
+    }
+
+    setUploading(true);
+
+    const fileExt = inspectionFile.name.split('.').pop();
+    const filePath = `${profile.id}/${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('inspection-reports')
+      .upload(filePath, inspectionFile);
+
+    if (uploadError) {
+      setUploading(false);
+      setSubmitError(`Upload failed: ${uploadError.message}`);
+      return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('inspection-reports')
+      .getPublicUrl(filePath);
+
+    const { data: vehicle, error: insertError } = await supabase.from('vehicles').insert({
       seller_id: profile.id,
       make: form.make,
       model: form.model,
@@ -50,7 +79,15 @@ export function SellPage() {
       is_verified: false,
       is_featured: false,
       images: [],
+      inspection_report_url: publicUrl,
     }).select().single();
+
+    setUploading(false);
+
+    if (insertError) {
+      setSubmitError(`Could not create listing: ${insertError.message}`);
+      return;
+    }
 
     if (vehicle) setSubmitted(true);
   }
@@ -208,17 +245,35 @@ export function SellPage() {
               />
             </FormField>
 
-            {/* Inspection upload placeholder */}
+            {/* Inspection upload */}
             <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center">
               <Upload className="w-8 h-8 mx-auto mb-2 text-slate-400" />
               <p className="text-sm font-medium text-slate-700">Inspection Report (Required)</p>
               <p className="text-xs text-slate-400 mt-1">
                 Upload a verified inspection report from SGS, TÜV, or CMA. Your listing will remain pending until verified.
               </p>
-              <button type="button" className="mt-3 text-sm text-green-600 font-semibold hover:underline">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                className="hidden"
+                onChange={(e) => setInspectionFile(e.target.files?.[0] ?? null)}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-3 text-sm text-green-600 font-semibold hover:underline"
+              >
                 Choose File
               </button>
+              {inspectionFile && (
+                <p className="text-xs text-slate-600 mt-2">Selected: {inspectionFile.name}</p>
+              )}
             </div>
+
+            {submitError && (
+              <p className="text-sm text-red-600 text-center">{submitError}</p>
+            )}
 
             {/* Trust info */}
             <div className="bg-emerald-50 rounded-xl p-4 flex gap-3">
@@ -243,8 +298,12 @@ export function SellPage() {
               <button type="button" onClick={() => setRole('select')} className="px-6 py-3 border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors">
                 Back
               </button>
-              <button type="submit" className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition-colors">
-                Submit Listing for Review
+              <button
+                type="submit"
+                disabled={uploading}
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
+              >
+                {uploading ? 'Submitting...' : 'Submit Listing for Review'}
               </button>
             </div>
           </form>
