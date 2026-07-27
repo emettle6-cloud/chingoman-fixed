@@ -34,9 +34,12 @@ export function SellPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!user || !profile) return;
     setSubmitError(null);
 
+    if (!user || !profile) {
+      setSubmitError('Your account isn\'t fully loaded yet. Please sign out and sign back in, then try again.');
+      return;
+    }
     if (!inspectionFile) {
       setSubmitError('Please upload an inspection report before submitting.');
       return;
