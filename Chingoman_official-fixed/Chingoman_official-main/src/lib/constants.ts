@@ -107,7 +107,7 @@ export const TRUST_FEATURES = [
   },
   {
     title: 'Escrow Payment Protection',
-    description: 'Your money is held in escrow until the vehicle arrives and passes inspection at the destination port. Release funds only when you are satisfied.',
+    description: 'You will make the last trunch of payment against verification that your car has been shipped.',
     icon: 'Lock',
   },
   {
