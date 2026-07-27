@@ -9,6 +9,7 @@ import { CIFCalculatorPage } from '@/pages/CIFCalculatorPage';
 import { SellPage } from '@/pages/SellPage';
 import { ImportGuidePage } from '@/pages/ImportGuidePage';
 import { DashboardPage } from '@/pages/DashboardPage';
+import { AdminDashboardPage } from '@/pages/AdminDashboardPage';
 import { AboutPage } from '@/pages/AboutPage';
 
 function PageRouter() {
@@ -22,6 +23,7 @@ function PageRouter() {
     case 'sell': return <SellPage />;
     case 'guide': return <ImportGuidePage />;
     case 'dashboard': return <DashboardPage />;
+    case 'admin': return <AdminDashboardPage />;
     case 'about': return <AboutPage />;
     default: return <HomePage />;
   }
