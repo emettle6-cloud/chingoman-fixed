@@ -76,7 +76,7 @@ export function AdminDashboardPage() {
                 <p className="font-semibold text-slate-900">{v.year} {v.make} {v.model}</p>
                 <p className="text-sm text-slate-500">${v.price_usd?.toLocaleString()} · {v.port_china}</p>
                 {v.inspection_report_url ? (
-                  
+                  <a
                     href={v.inspection_report_url}
                     target="_blank"
                     rel="noopener noreferrer"
