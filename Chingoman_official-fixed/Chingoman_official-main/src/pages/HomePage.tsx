@@ -7,7 +7,7 @@ import { useRouter } from '@/context/RouterContext';
 import { supabase } from '@/lib/supabase';
 import type { Vehicle } from '@/types';
 import { VehicleCard } from '@/components/VehicleCard';
-import { TRUST_FEATURES, MONETIZATION_FEATURES, VEHICLE_TYPE_LABELS } from '@/lib/constants';
+import { TRUST_FEATURES, MONETIZATION_FEATURES, VEHICLE_TYPE_LABELS, DESTINATION_PORTS } from '@/lib/constants';
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   ClipboardCheck, Lock, BatteryCharging, BadgeCheck, Ship, TrendingUp,
@@ -16,10 +16,18 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
 export function HomePage() {
   const { navigate } = useRouter();
   const [featured, setFeatured] = useState<Vehicle[]>([]);
+  const [featuredLoading, setFeaturedLoading] = useState(true);
+  const [listedCount, setListedCount] = useState<number | null>(null);
   const [searchMake, setSearchMake] = useState('');
   const [searchType, setSearchType] = useState('');
 
   useEffect(() => {
+    supabase
+      .from('vehicles')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'active')
+      .then(({ count }) => setListedCount(count ?? 0));
+
     supabase
       .from('vehicles')
       .select('*')
@@ -27,7 +35,10 @@ export function HomePage() {
       .eq('is_featured', true)
       .order('created_at', { ascending: false })
       .limit(6)
-      .then(({ data }) => setFeatured((data as Vehicle[]) ?? []));
+      .then(({ data }) => {
+        setFeatured((data as Vehicle[]) ?? []);
+        setFeaturedLoading(false);
+      });
   }, []);
 
   const powertrainOptions = Object.entries(VEHICLE_TYPE_LABELS);
@@ -108,9 +119,9 @@ export function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { icon: Car, label: 'Vehicles Listed', value: '16+' },
+             { icon: Car, label: 'Vehicles Listed', value: listedCount === null ? '—' : `${listedCount}` },
               { icon: ShieldCheck, label: 'Verified Inspections', value: '100%' },
-              { icon: Ship, label: 'Destination Ports', value: '5' },
+              { icon: Ship, label: 'Destination Ports', value: `${DESTINATION_PORTS.length}` },
               { icon: Zap, label: 'EV & Hybrid Ready', value: 'Yes' },
             ].map((stat) => (
               <div key={stat.label} className="flex items-center gap-3">
@@ -142,18 +153,23 @@ export function HomePage() {
           </button>
         </div>
 
-        {featured.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featured.map((v) => (
-              <VehicleCard key={v.id} vehicle={v} />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-16 text-slate-400">
-            <Car className="w-12 h-12 mx-auto mb-3" />
-            <p>Loading featured vehicles...</p>
-          </div>
-        )}
+        {featuredLoading ? (
+              <div className="text-center py-16 text-slate-400">
+                <Car className="w-12 h-12 mx-auto mb-3" />
+                <p>Loading featured vehicles...</p>
+              </div>
+            ) : featured.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {featured.map((v) => (
+                  <VehicleCard key={v.id} vehicle={v} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-16 text-slate-400">
+                <Car className="w-12 h-12 mx-auto mb-3" />
+                <p>No featured vehicles yet — check back soon, or browse all listings.</p>
+              </div>
+            )}
 
         <div className="sm:hidden mt-6">
           <button
