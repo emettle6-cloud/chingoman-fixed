@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import {
-  UserCheck, Store, ArrowRight, CheckCircle2, Info, Ship, FileText,
-  Lock, BadgeCheck, Upload, AlertTriangle,
+  UserCheck, Store, ArrowRight, CheckCircle2, Info, FileText,
+  Lock, Upload, AlertTriangle, X, ImagePlus
 } from 'lucide-react';
 import { useRouter } from '@/context/RouterContext';
 import { useAuth } from '@/context/AuthContext';
@@ -22,22 +22,48 @@ export function SellPage() {
     steeringSide: 'LHD', price: '', mileage: '', color: '',
     portChina: 'Guangzhou', description: '',
   });
+  
   const [inspectionFile, setInspectionFile] = useState<File | null>(null);
+  
+  // NEW: State for handling multiple image files
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  
   const [uploading, setUploading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   function startFlow(r: Role) {
     if (!user) { setAuthOpen(true); return; }
     setRole(r);
   }
 
+  // NEW: Handlers for adding and removing image previews
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      // Limit to a maximum of 10 images at a time (optional)
+      setImageFiles((prev) => [...prev, ...filesArray].slice(0, 10));
+    }
+  };
+
+  const removeImage = (indexToRemove: number) => {
+    setImageFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
+  };
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError(null);
 
     if (!user || !profile) {
-      setSubmitError('Your account isn\'t fully loaded yet. Please sign out and sign back in, then try again.');
+      setSubmitError("Your account isn't fully loaded yet. Please sign out and sign back in, then try again.");
+      return;
+    }
+    
+    // Validations
+    if (imageFiles.length === 0) {
+      setSubmitError('Please upload at least one picture of the vehicle.');
       return;
     }
     if (!inspectionFile) {
@@ -47,52 +73,77 @@ export function SellPage() {
 
     setUploading(true);
 
-    const fileExt = inspectionFile.name.split('.').pop();
-    const filePath = `${profile.id}/${Date.now()}.${fileExt}`;
+    try {
+      // 1. Upload Vehicle Images
+      const imageUploadPromises = imageFiles.map(async (file) => {
+        const fileExt = file.name.split('.').pop();
+        const filePath = `${profile.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('inspection-reports')
-      .upload(filePath, inspectionFile);
+        const { error: imgUploadError } = await supabase.storage
+          .from('vehicle-images')
+          .upload(filePath, file);
 
-    if (uploadError) {
+        if (imgUploadError) throw new Error(`Image upload failed: ${imgUploadError.message}`);
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('vehicle-images')
+          .getPublicUrl(filePath);
+
+        return publicUrl;
+      });
+
+      // Wait for all images to finish uploading
+      const imageUrls = await Promise.all(imageUploadPromises);
+
+      // 2. Upload Inspection Report
+      const fileExt = inspectionFile.name.split('.').pop();
+      const filePath = `${profile.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('inspection-reports')
+        .upload(filePath, inspectionFile);
+
+      if (uploadError) {
+        throw new Error(`Inspection upload failed: ${uploadError.message}`);
+      }
+
+      const { data: { publicUrl: inspectionPublicUrl } } = supabase.storage
+        .from('inspection-reports')
+        .getPublicUrl(filePath);
+
+      // 3. Create Listing Database Record
+      const { data: vehicle, error: insertError } = await supabase.from('vehicles').insert({
+        seller_id: profile.id,
+        make: form.make,
+        model: form.model,
+        year: Number(form.year),
+        vehicle_type: form.vehicleType,
+        steering_side: form.steeringSide,
+        price_usd: Number(form.price),
+        mileage_km: form.mileage ? Number(form.mileage) : null,
+        color: form.color || null,
+        port_china: form.portChina,
+        listing_type: role,
+        description: form.description,
+        status: 'pending',
+        shipping_available: true,
+        is_verified: false,
+        is_featured: false,
+        images: imageUrls, // Store the array of generated image URLs
+        inspection_report_url: inspectionPublicUrl,
+      }).select().single();
+
+      if (insertError) {
+        throw new Error(`Could not create listing: ${insertError.message}`);
+      }
+
+      if (vehicle) setSubmitted(true);
+
+    } catch (error: any) {
+      setSubmitError(error.message || 'An unexpected error occurred during upload.');
+    } finally {
       setUploading(false);
-      setSubmitError(`Upload failed: ${uploadError.message}`);
-      return;
     }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('inspection-reports')
-      .getPublicUrl(filePath);
-
-    const { data: vehicle, error: insertError } = await supabase.from('vehicles').insert({
-      seller_id: profile.id,
-      make: form.make,
-      model: form.model,
-      year: Number(form.year),
-      vehicle_type: form.vehicleType,
-      steering_side: form.steeringSide,
-      price_usd: Number(form.price),
-      mileage_km: form.mileage ? Number(form.mileage) : null,
-      color: form.color || null,
-      port_china: form.portChina,
-      listing_type: role,
-      description: form.description,
-      status: 'pending',
-      shipping_available: true,
-      is_verified: false,
-      is_featured: false,
-      images: [],
-      inspection_report_url: publicUrl,
-    }).select().single();
-
-    setUploading(false);
-
-    if (insertError) {
-      setSubmitError(`Could not create listing: ${insertError.message}`);
-      return;
-    }
-
-    if (vehicle) setSubmitted(true);
   }
 
   if (submitted) {
@@ -110,7 +161,12 @@ export function SellPage() {
           <button onClick={() => navigate({ name: 'browse' })} className="bg-green-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-green-700 transition-colors">
             Browse Vehicles
           </button>
-          <button onClick={() => { setSubmitted(false); setRole('select'); }} className="border border-slate-200 text-slate-700 font-semibold px-6 py-3 rounded-xl hover:bg-slate-50 transition-colors">
+          <button onClick={() => { 
+            setSubmitted(false); 
+            setRole('select'); 
+            setImageFiles([]); 
+            setInspectionFile(null); 
+          }} className="border border-slate-200 text-slate-700 font-semibold px-6 py-3 rounded-xl hover:bg-slate-50 transition-colors">
             List Another
           </button>
         </div>
@@ -248,9 +304,55 @@ export function SellPage() {
               />
             </FormField>
 
+            {/* Vehicle Images Upload */}
+            <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center">
+              <ImagePlus className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+              <p className="text-sm font-medium text-slate-700">Vehicle Pictures (Required)</p>
+              <p className="text-xs text-slate-400 mt-1">
+                Upload clear photos showing the exterior and interior of the vehicle (Max 10).
+              </p>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleImageChange}
+              />
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                className="mt-4 text-sm bg-slate-100 text-slate-700 font-semibold py-2 px-4 rounded-lg hover:bg-slate-200 transition-colors"
+              >
+                Choose Photos
+              </button>
+
+              {imageFiles.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {imageFiles.map((file, index) => (
+                    <div key={index} className="relative aspect-[4/3] bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+                      <img 
+                        src={URL.createObjectURL(file)} 
+                        alt={`Preview ${index + 1}`} 
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        className="absolute top-1 right-1 bg-white/90 rounded-full p-1 text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors shadow-sm"
+                        title="Remove image"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Inspection upload */}
             <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center">
-              <Upload className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+              <FileText className="w-8 h-8 mx-auto mb-2 text-slate-400" />
               <p className="text-sm font-medium text-slate-700">Inspection Report (Required)</p>
               <p className="text-xs text-slate-400 mt-1">
                 Upload a verified inspection report from SGS, TÜV, or CMA. Your listing will remain pending until verified.
@@ -265,17 +367,19 @@ export function SellPage() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="mt-3 text-sm text-green-600 font-semibold hover:underline"
+                className="mt-4 text-sm bg-slate-100 text-slate-700 font-semibold py-2 px-4 rounded-lg hover:bg-slate-200 transition-colors"
               >
                 Choose File
               </button>
               {inspectionFile && (
-                <p className="text-xs text-slate-600 mt-2">Selected: {inspectionFile.name}</p>
+                <p className="text-sm text-green-700 font-medium mt-3 bg-green-50 py-2 px-4 rounded-lg inline-block">
+                  Selected: {inspectionFile.name}
+                </p>
               )}
             </div>
 
             {submitError && (
-              <p className="text-sm text-red-600 text-center">{submitError}</p>
+              <p className="text-sm text-red-600 text-center font-medium bg-red-50 py-3 rounded-lg">{submitError}</p>
             )}
 
             {/* Trust info */}
@@ -304,9 +408,14 @@ export function SellPage() {
               <button
                 type="submit"
                 disabled={uploading}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
               >
-                {uploading ? 'Submitting...' : 'Submit Listing for Review'}
+                {uploading ? (
+                  <>
+                    <Upload className="w-5 h-5 animate-bounce" />
+                    Submitting...
+                  </>
+                ) : 'Submit Listing for Review'}
               </button>
             </div>
           </form>
