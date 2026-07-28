@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ArrowLeft, BadgeCheck, Calendar, Gauge, Fuel, ShipWheel, BatteryCharging,
   MapPin, Ship, ShieldCheck, Lock, FileText, MessageSquare, Heart, Share2,
-  Calculator, Zap, Cog, Palette, CheckCircle2, AlertTriangle, Phone, Car,
+  Calculator, Zap, Cog, Palette, CheckCircle2, AlertTriangle, Car,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Vehicle, Inspection } from '@/types';
@@ -11,7 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { formatUSD, calculateCIF } from '@/lib/cif';
 import {
   VEHICLE_TYPE_LABELS, VEHICLE_TYPE_COLORS, SOH_RATING, CHARGING_ADVICE,
-  RHD_WARNING, DESTINATION_PORTS,
+  RHD_WARNING,
 } from '@/lib/constants';
 import { AuthModal } from '@/components/AuthModal';
 
@@ -286,7 +286,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               )}
 
               {inspection.report_url && (
-                
+                <a
                   href={inspection.report_url}
                   target="_blank"
                   rel="noopener noreferrer"
