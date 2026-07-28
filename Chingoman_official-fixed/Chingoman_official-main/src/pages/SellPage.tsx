@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import {
-  UserCheck, Store, ArrowRight, CheckCircle2, Info, FileText,
-  Lock, Upload, AlertTriangle, X, ImagePlus
+  UserCheck, Store, ArrowRight, CheckCircle2, Info, Ship, FileText,
+  Lock, BadgeCheck, Upload, AlertTriangle, ImagePlus, X,
 } from 'lucide-react';
 import { useRouter } from '@/context/RouterContext';
 import { useAuth } from '@/context/AuthContext';
@@ -22,128 +22,129 @@ export function SellPage() {
     steeringSide: 'LHD', price: '', mileage: '', color: '',
     portChina: 'Guangzhou', description: '',
   });
-  
   const [inspectionFile, setInspectionFile] = useState<File | null>(null);
-  
-  // NEW: State for handling multiple image files
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  
+  const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const MAX_PHOTOS = 10;
+  const MIN_PHOTOS = 3;
+
+  function addPhotos(files: FileList | null) {
+    if (!files) return;
+    const incoming = Array.from(files)
+      .filter((f) => f.type.startsWith('image/'))
+      .slice(0, MAX_PHOTOS - photos.length)
+      .map((file) => ({ file, preview: URL.createObjectURL(file) }));
+    setPhotos((prev) => [...prev, ...incoming]);
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  }
+
+  function removePhoto(index: number) {
+    setPhotos((prev) => {
+      const next = [...prev];
+      URL.revokeObjectURL(next[index].preview);
+      next.splice(index, 1);
+      return next;
+    });
+  }
 
   function startFlow(r: Role) {
     if (!user) { setAuthOpen(true); return; }
     setRole(r);
   }
 
-  // NEW: Handlers for adding and removing image previews
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      // Limit to a maximum of 10 images at a time (optional)
-      setImageFiles((prev) => [...prev, ...filesArray].slice(0, 10));
-    }
-  };
-
-  const removeImage = (indexToRemove: number) => {
-    setImageFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
-  };
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError(null);
 
     if (!user || !profile) {
-      setSubmitError("Your account isn't fully loaded yet. Please sign out and sign back in, then try again.");
-      return;
-    }
-    
-    // Validations
-    if (imageFiles.length === 0) {
-      setSubmitError('Please upload at least one picture of the vehicle.');
+      setSubmitError('Your account isn\'t fully loaded yet. Please sign out and sign back in, then try again.');
       return;
     }
     if (!inspectionFile) {
       setSubmitError('Please upload an inspection report before submitting.');
       return;
     }
+    if (photos.length < MIN_PHOTOS) {
+      setSubmitError(`Please upload at least ${MIN_PHOTOS} photos of the vehicle before submitting.`);
+      return;
+    }
 
     setUploading(true);
 
-    try {
-      // 1. Upload Vehicle Images
-      const imageUploadPromises = imageFiles.map(async (file) => {
-        const fileExt = file.name.split('.').pop();
-        const filePath = `${profile.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const fileExt = inspectionFile.name.split('.').pop();
+    const filePath = `${profile.id}/${Date.now()}.${fileExt}`;
 
-        const { error: imgUploadError } = await supabase.storage
-          .from('vehicle-images')
-          .upload(filePath, file);
+    const { error: uploadError } = await supabase.storage
+      .from('inspection-reports')
+      .upload(filePath, inspectionFile);
 
-        if (imgUploadError) throw new Error(`Image upload failed: ${imgUploadError.message}`);
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('vehicle-images')
-          .getPublicUrl(filePath);
-
-        return publicUrl;
-      });
-
-      // Wait for all images to finish uploading
-      const imageUrls = await Promise.all(imageUploadPromises);
-
-      // 2. Upload Inspection Report
-      const fileExt = inspectionFile.name.split('.').pop();
-      const filePath = `${profile.id}/${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('inspection-reports')
-        .upload(filePath, inspectionFile);
-
-      if (uploadError) {
-        throw new Error(`Inspection upload failed: ${uploadError.message}`);
-      }
-
-      const { data: { publicUrl: inspectionPublicUrl } } = supabase.storage
-        .from('inspection-reports')
-        .getPublicUrl(filePath);
-
-      // 3. Create Listing Database Record
-      const { data: vehicle, error: insertError } = await supabase.from('vehicles').insert({
-        seller_id: profile.id,
-        make: form.make,
-        model: form.model,
-        year: Number(form.year),
-        vehicle_type: form.vehicleType,
-        steering_side: form.steeringSide,
-        price_usd: Number(form.price),
-        mileage_km: form.mileage ? Number(form.mileage) : null,
-        color: form.color || null,
-        port_china: form.portChina,
-        listing_type: role,
-        description: form.description,
-        status: 'pending',
-        shipping_available: true,
-        is_verified: false,
-        is_featured: false,
-        images: imageUrls, // Store the array of generated image URLs
-        inspection_report_url: inspectionPublicUrl,
-      }).select().single();
-
-      if (insertError) {
-        throw new Error(`Could not create listing: ${insertError.message}`);
-      }
-
-      if (vehicle) setSubmitted(true);
-
-    } catch (error: any) {
-      setSubmitError(error.message || 'An unexpected error occurred during upload.');
-    } finally {
+    if (uploadError) {
       setUploading(false);
+      setSubmitError(`Upload failed: ${uploadError.message}`);
+      return;
     }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('inspection-reports')
+      .getPublicUrl(filePath);
+
+    // Upload every photo the seller selected, in the order they arranged them.
+    const uploadedImageUrls: string[] = [];
+    for (let i = 0; i < photos.length; i++) {
+      const photoFile = photos[i].file;
+      const photoExt = photoFile.name.split('.').pop();
+      const photoPath = `${profile.id}/${Date.now()}-${i}.${photoExt}`;
+
+      const { error: photoUploadError } = await supabase.storage
+        .from('vehicle-images')
+        .upload(photoPath, photoFile);
+
+      if (photoUploadError) {
+        setUploading(false);
+        setSubmitError(`Photo upload failed: ${photoUploadError.message}`);
+        return;
+      }
+
+      const { data: { publicUrl: photoUrl } } = supabase.storage
+        .from('vehicle-images')
+        .getPublicUrl(photoPath);
+
+      uploadedImageUrls.push(photoUrl);
+    }
+
+    const { data: vehicle, error: insertError } = await supabase.from('vehicles').insert({
+      seller_id: profile.id,
+      make: form.make,
+      model: form.model,
+      year: Number(form.year),
+      vehicle_type: form.vehicleType,
+      steering_side: form.steeringSide,
+      price_usd: Number(form.price),
+      mileage_km: form.mileage ? Number(form.mileage) : null,
+      color: form.color || null,
+      port_china: form.portChina,
+      listing_type: role,
+      description: form.description,
+      status: 'pending',
+      shipping_available: true,
+      is_verified: false,
+      is_featured: false,
+      images: uploadedImageUrls,
+      inspection_report_url: publicUrl,
+    }).select().single();
+
+    setUploading(false);
+
+    if (insertError) {
+      setSubmitError(`Could not create listing: ${insertError.message}`);
+      return;
+    }
+
+    if (vehicle) setSubmitted(true);
   }
 
   if (submitted) {
@@ -161,12 +162,16 @@ export function SellPage() {
           <button onClick={() => navigate({ name: 'browse' })} className="bg-green-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-green-700 transition-colors">
             Browse Vehicles
           </button>
-          <button onClick={() => { 
-            setSubmitted(false); 
-            setRole('select'); 
-            setImageFiles([]); 
-            setInspectionFile(null); 
-          }} className="border border-slate-200 text-slate-700 font-semibold px-6 py-3 rounded-xl hover:bg-slate-50 transition-colors">
+          <button
+            onClick={() => {
+              photos.forEach((p) => URL.revokeObjectURL(p.preview));
+              setPhotos([]);
+              setInspectionFile(null);
+              setSubmitted(false);
+              setRole('select');
+            }}
+            className="border border-slate-200 text-slate-700 font-semibold px-6 py-3 rounded-xl hover:bg-slate-50 transition-colors"
+          >
             List Another
           </button>
         </div>
@@ -304,43 +309,31 @@ export function SellPage() {
               />
             </FormField>
 
-            {/* Vehicle Images Upload */}
-            <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center">
-              <ImagePlus className="w-8 h-8 mx-auto mb-2 text-slate-400" />
-              <p className="text-sm font-medium text-slate-700">Vehicle Pictures (Required)</p>
-              <p className="text-xs text-slate-400 mt-1">
-                Upload clear photos showing the exterior and interior of the vehicle (Max 10).
+            {/* Vehicle photo upload */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Vehicle Photos (Required — min {MIN_PHOTOS}, max {MAX_PHOTOS})
+              </label>
+              <p className="text-xs text-slate-400 mb-3">
+                Upload real photos of the actual vehicle you're listing — exterior, interior, and engine bay.
+                Buyers trust listings with clear, honest photos, and your listing won't be approved without them.
               </p>
-              <input
-                ref={imageInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={handleImageChange}
-              />
-              <button
-                type="button"
-                onClick={() => imageInputRef.current?.click()}
-                className="mt-4 text-sm bg-slate-100 text-slate-700 font-semibold py-2 px-4 rounded-lg hover:bg-slate-200 transition-colors"
-              >
-                Choose Photos
-              </button>
 
-              {imageFiles.length > 0 && (
-                <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-                  {imageFiles.map((file, index) => (
-                    <div key={index} className="relative aspect-[4/3] bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
-                      <img 
-                        src={URL.createObjectURL(file)} 
-                        alt={`Preview ${index + 1}`} 
-                        className="w-full h-full object-cover"
-                      />
+              {photos.length > 0 && (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-3">
+                  {photos.map((p, i) => (
+                    <div key={p.preview} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 group">
+                      <img src={p.preview} alt={`Vehicle photo ${i + 1}`} className="w-full h-full object-cover" />
+                      {i === 0 && (
+                        <span className="absolute bottom-1 left-1 bg-slate-900/80 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
+                          Cover
+                        </span>
+                      )}
                       <button
                         type="button"
-                        onClick={() => removeImage(index)}
-                        className="absolute top-1 right-1 bg-white/90 rounded-full p-1 text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors shadow-sm"
-                        title="Remove image"
+                        onClick={() => removePhoto(i)}
+                        className="absolute top-1 right-1 bg-slate-900/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label="Remove photo"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -348,11 +341,36 @@ export function SellPage() {
                   ))}
                 </div>
               )}
+
+              {photos.length < MAX_PHOTOS && (
+                <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center">
+                  <ImagePlus className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+                  <p className="text-sm font-medium text-slate-700">
+                    {photos.length === 0 ? 'Add photos of your vehicle' : 'Add more photos'}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">JPG or PNG. The first photo becomes the cover image.</p>
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => addPhotos(e.target.files)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    className="mt-3 text-sm text-green-600 font-semibold hover:underline"
+                  >
+                    Choose Photos
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Inspection upload */}
             <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center">
-              <FileText className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+              <Upload className="w-8 h-8 mx-auto mb-2 text-slate-400" />
               <p className="text-sm font-medium text-slate-700">Inspection Report (Required)</p>
               <p className="text-xs text-slate-400 mt-1">
                 Upload a verified inspection report from SGS, TÜV, or CMA. Your listing will remain pending until verified.
@@ -367,19 +385,17 @@ export function SellPage() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="mt-4 text-sm bg-slate-100 text-slate-700 font-semibold py-2 px-4 rounded-lg hover:bg-slate-200 transition-colors"
+                className="mt-3 text-sm text-green-600 font-semibold hover:underline"
               >
                 Choose File
               </button>
               {inspectionFile && (
-                <p className="text-sm text-green-700 font-medium mt-3 bg-green-50 py-2 px-4 rounded-lg inline-block">
-                  Selected: {inspectionFile.name}
-                </p>
+                <p className="text-xs text-slate-600 mt-2">Selected: {inspectionFile.name}</p>
               )}
             </div>
 
             {submitError && (
-              <p className="text-sm text-red-600 text-center font-medium bg-red-50 py-3 rounded-lg">{submitError}</p>
+              <p className="text-sm text-red-600 text-center">{submitError}</p>
             )}
 
             {/* Trust info */}
@@ -408,14 +424,9 @@ export function SellPage() {
               <button
                 type="submit"
                 disabled={uploading}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
               >
-                {uploading ? (
-                  <>
-                    <Upload className="w-5 h-5 animate-bounce" />
-                    Submitting...
-                  </>
-                ) : 'Submit Listing for Review'}
+                {uploading ? 'Submitting...' : 'Submit Listing for Review'}
               </button>
             </div>
           </form>
