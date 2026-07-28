@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ArrowLeft, BadgeCheck, Calendar, Gauge, Fuel, ShipWheel, BatteryCharging,
   MapPin, Ship, ShieldCheck, Lock, FileText, MessageSquare, Heart, Share2,
-  Calculator, Zap, Cog, Palette, CheckCircle2, AlertTriangle, Phone,
+  Calculator, Zap, Cog, Palette, CheckCircle2, AlertTriangle, Phone, Car,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Vehicle, Inspection } from '@/types';
@@ -91,7 +91,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const soh = vehicle.battery_soh !== null ? SOH_RATING(vehicle.battery_soh) : null;
   const typeColor = VEHICLE_TYPE_COLORS[vehicle.vehicle_type] ?? VEHICLE_TYPE_COLORS.ICE;
   const chargingAdvice = vehicle.charging_type ? CHARGING_ADVICE[vehicle.charging_type] : null;
-  const images = vehicle.images?.length > 0 ? vehicle.images : ['https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg?auto=compress&cs=tinysrgb&w=1200'];
+  const images = vehicle.images ?? [];
 
   function toggleFavorite() {
     if (!user || !profile) { setAuthOpen(true); return; }
@@ -119,7 +119,14 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
           {/* Image gallery */}
           <div>
             <div className="aspect-[16/10] rounded-2xl overflow-hidden bg-slate-100 relative">
-              <img src={images[activeImage]} alt={`${vehicle.make} ${vehicle.model}`} className="w-full h-full object-cover" />
+              {images.length > 0 ? (
+                <img src={images[activeImage]} alt={`${vehicle.make} ${vehicle.model}`} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                  <Car className="w-10 h-10 mb-2" />
+                  <span className="text-sm font-medium">No photos uploaded yet</span>
+                </div>
+              )}
               <div className="absolute top-4 left-4 flex gap-2">
                 <span className={`px-3 py-1.5 rounded-full text-sm font-semibold border ${typeColor}`}>
                   {VEHICLE_TYPE_LABELS[vehicle.vehicle_type]}
@@ -279,7 +286,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               )}
 
               {inspection.report_url && (
-                <a
+                
                   href={inspection.report_url}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -296,8 +303,8 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
             <div className="bg-white rounded-2xl border border-slate-200 p-5 flex gap-3">
               <ShieldCheck className="w-8 h-8 text-emerald-600 shrink-0" />
               <div>
-                <p className="font-semibold text-slate-900 text-sm">Escrow Protected</p>
-                <p className="text-xs text-slate-500 mt-0.5">Your payment is held in escrow until the vehicle clears customs and passes inspection at the destination port.</p>
+                <p className="font-semibold text-slate-900 text-sm">Staged Payment Protection</p>
+                <p className="text-xs text-slate-500 mt-0.5">You never pay the full amount upfront — your final payment is only due once your vehicle's shipment has been verified.</p>
               </div>
             </div>
             <div className="bg-white rounded-2xl border border-slate-200 p-5 flex gap-3">
@@ -396,7 +403,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                     </p>
                   )}
                   <p className="text-xs text-slate-500">
-                    Use the in-app messaging system for your safety. Chin-go-man escrow protects all transactions.
+                    Use the in-app messaging system for your safety. Chin-go-man's staged payment process protects every transaction.
                   </p>
                 </div>
               )}
@@ -411,7 +418,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 <TrustRow label="Inspection Verified" value={vehicle.is_verified} />
                 <TrustRow label="Inspection Report" value={!!inspection} />
                 <TrustRow label="Battery SOH Reported" value={vehicle.battery_soh !== null} />
-                <TrustRow label="Escrow Available" value={true} />
+                <TrustRow label="Staged Payments Available" value={true} />
                 <TrustRow label="Shipping Available" value={vehicle.shipping_available} />
               </div>
             </div>
