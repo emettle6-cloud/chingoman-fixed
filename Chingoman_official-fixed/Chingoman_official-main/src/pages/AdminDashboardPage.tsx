@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { CheckCircle2, XCircle, FileText, ShieldCheck, Star, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -11,11 +11,7 @@ export function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [actioningId, setActioningId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (profile?.is_admin) loadAll();
-  }, [profile]);
-
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     const [{ data: pendingData }, { data: activeData }] = await Promise.all([
       supabase.from('vehicles').select('*').eq('status', 'pending').order('created_at', { ascending: true }),
@@ -24,7 +20,11 @@ export function AdminDashboardPage() {
     setPending((pendingData as Vehicle[]) ?? []);
     setActive((activeData as Vehicle[]) ?? []);
     setLoading(false);
-  }
+  }, []);
+
+  useEffect(() => {
+    if (profile?.is_admin) loadAll();
+  }, [profile, loadAll]);
 
   async function approve(id: string) {
     setActioningId(id);
@@ -87,7 +87,9 @@ export function AdminDashboardPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       <h1 className="text-2xl font-bold text-slate-900 mb-1">Listing Approvals</h1>
-      <p className="text-slate-500 mb-8">Review inspection reports, approve or reject pending listings, and manage featured vehicles.</p>
+      <p className="text-slate-500 mb-8">
+        Review inspection reports, approve or reject pending listings, and manage featured vehicles.
+      </p>
 
       {loading ? (
         <p className="text-slate-400">Loading...</p>
@@ -107,7 +109,7 @@ export function AdminDashboardPage() {
                     <p className="font-semibold text-slate-900">{v.year} {v.make} {v.model}</p>
                     <p className="text-sm text-slate-500">${v.price_usd?.toLocaleString()} · {v.port_china}</p>
                     {v.inspection_report_url ? (
-                      
+                      <a
                         href={v.inspection_report_url}
                         target="_blank"
                         rel="noopener noreferrer"
