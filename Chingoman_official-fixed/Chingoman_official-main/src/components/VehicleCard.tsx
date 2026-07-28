@@ -1,4 +1,4 @@
-import { Gauge, Calendar, Fuel, ShipWheel, BadgeCheck, BatteryCharging, MapPin } from 'lucide-react';
+import { Gauge, Calendar, Fuel, ShipWheel, BadgeCheck, BatteryCharging, MapPin, Camera } from 'lucide-react';
 import type { Vehicle } from '@/types';
 import { VEHICLE_TYPE_COLORS, VEHICLE_TYPE_SHORT, SOH_RATING } from '@/lib/constants';
 import { formatUSD } from '@/lib/cif';
@@ -12,7 +12,7 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
   const { navigate } = useRouter();
   const soh = vehicle.battery_soh !== null ? SOH_RATING(vehicle.battery_soh) : null;
   const typeColor = VEHICLE_TYPE_COLORS[vehicle.vehicle_type] ?? VEHICLE_TYPE_COLORS.ICE;
-  const image = vehicle.images?.[0] ?? 'https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg?auto=compress&cs=tinysrgb&w=800';
+  const image = vehicle.images?.[0] ?? null;
 
   return (
     <button
@@ -20,11 +20,18 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
       className="group text-left bg-white rounded-2xl overflow-hidden border border-slate-200 hover:shadow-xl hover:border-green-300 transition-all duration-300"
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-slate-100">
-        <img
-          src={image}
-          alt={`${vehicle.make} ${vehicle.model}`}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-        />
+        {image ? (
+          <img
+            src={image}
+            alt={`${vehicle.make} ${vehicle.model}`}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+            <Camera className="w-8 h-8 mb-1.5" />
+            <span className="text-xs font-medium">No photo yet</span>
+          </div>
+        )}
         <div className="absolute top-3 left-3 flex gap-2">
           <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${typeColor}`}>
             {VEHICLE_TYPE_SHORT[vehicle.vehicle_type] ?? vehicle.vehicle_type}
