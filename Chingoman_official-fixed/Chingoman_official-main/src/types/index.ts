@@ -24,6 +24,7 @@ export interface Vehicle {
   battery_soh: number | null;
   range_km: number | null;
   charging_type: string | null;
+  has_home_charger: boolean;
   port_china: string;
   listing_type: ListingType;
   shipping_available: boolean;
