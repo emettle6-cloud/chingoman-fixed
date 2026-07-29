@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { X, Eye, EyeOff, MailCheck } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 interface AuthModalProps {
@@ -13,10 +13,12 @@ export function AuthModal({ open, onClose, defaultMode = 'signin' }: AuthModalPr
   const [mode, setMode] = useState<'signin' | 'signup'>(defaultMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [userType, setUserType] = useState('buyer');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [confirmationPending, setConfirmationPending] = useState(false);
 
   useEffect(() => {
     setMode(defaultMode);
@@ -26,6 +28,8 @@ export function AuthModal({ open, onClose, defaultMode = 'signin' }: AuthModalPr
     if (open) {
       setError(null);
       setPassword('');
+      setShowPassword(false);
+      setConfirmationPending(false);
     }
   }, [open]);
 
@@ -40,8 +44,9 @@ export function AuthModal({ open, onClose, defaultMode = 'signin' }: AuthModalPr
       if (error) setError(error);
       else onClose();
     } else {
-      const { error } = await signUp(email, password, name, userType);
+      const { error, needsEmailConfirmation } = await signUp(email, password, name, userType);
       if (error) setError(error);
+      else if (needsEmailConfirmation) setConfirmationPending(true);
       else onClose();
     }
     setLoading(false);
@@ -59,6 +64,22 @@ export function AuthModal({ open, onClose, defaultMode = 'signin' }: AuthModalPr
           </button>
         </div>
 
+        {confirmationPending ? (
+          <div className="text-center py-4">
+            <MailCheck className="w-10 h-10 mx-auto mb-3 text-emerald-500" />
+            <p className="font-semibold text-slate-900">Confirm your email to finish signing up</p>
+            <p className="text-sm text-slate-500 mt-2">
+              We've sent a confirmation link to <span className="font-medium text-slate-700">{email}</span>.
+              Open it to activate your account, then come back and sign in.
+            </p>
+            <button
+              onClick={() => { setConfirmationPending(false); setMode('signin'); }}
+              className="mt-5 text-sm text-green-600 font-semibold hover:underline"
+            >
+              Back to Sign In
+            </button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === 'signup' && (
             <>
@@ -95,15 +116,26 @@ export function AuthModal({ open, onClose, defaultMode = 'signin' }: AuthModalPr
             />
           </Field>
           <Field label="Password">
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition-all"
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2.5 pr-11 rounded-lg border border-slate-300 focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition-all"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </Field>
 
           {error && (
@@ -120,7 +152,9 @@ export function AuthModal({ open, onClose, defaultMode = 'signin' }: AuthModalPr
             {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
+        )}
 
+        {!confirmationPending && (
         <p className="text-center text-sm text-slate-500 mt-6">
           {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
           <button
@@ -130,6 +164,7 @@ export function AuthModal({ open, onClose, defaultMode = 'signin' }: AuthModalPr
             {mode === 'signin' ? 'Sign up' : 'Sign in'}
           </button>
         </p>
+        )}
       </div>
     </div>
   );
