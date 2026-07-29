@@ -121,3 +121,21 @@ export const TRUST_FEATURES = [
     icon: 'BadgeCheck',
   },
 ];
+
+export const VEHICLE_STATUS_LABELS: Record<string, string> = {
+  active: 'Active',
+  sold: 'Sold',
+  out_of_stock: 'Out of Stock',
+  rejected: 'Rejected',
+  draft: 'Draft',
+  pending: 'Pending Review',
+};
+
+export const VEHICLE_STATUS_COLORS: Record<string, string> = {
+  active: 'bg-emerald-100 text-emerald-700 border-emerald-300',
+  sold: 'bg-slate-800 text-white border-slate-800',
+  out_of_stock: 'bg-amber-100 text-amber-800 border-amber-300',
+  rejected: 'bg-red-100 text-red-700 border-red-300',
+  draft: 'bg-slate-100 text-slate-600 border-slate-300',
+  pending: 'bg-blue-100 text-blue-700 border-blue-300',
+};
