@@ -1,7 +1,7 @@
 export type VehicleType = 'ICE' | 'Hybrid' | 'PHEV' | 'EREV' | 'EV';
 export type SteeringSide = 'LHD' | 'RHD';
 export type ListingType = 'marketer' | 'direct';
-export type VehicleStatus = 'active' | 'sold' | 'draft' | 'pending';
+export type VehicleStatus = 'active' | 'sold' | 'out_of_stock' | 'rejected' | 'draft' | 'pending';
 export type UserType = 'buyer' | 'marketer' | 'admin';
 
 export interface Vehicle {
@@ -112,4 +112,15 @@ export interface Message {
   content: string;
   is_read: boolean;
   created_at: string;
+}
+
+export interface Review {
+  id: string;
+  seller_id: string;
+  reviewer_id: string;
+  vehicle_id: string | null;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  reviewer?: Pick<Profile, 'full_name' | 'avatar_url'>;
 }
