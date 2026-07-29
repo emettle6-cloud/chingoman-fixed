@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import {
   UserCheck, Store, ArrowRight, CheckCircle2, Info, Ship, FileText,
-  Lock, BadgeCheck, Upload, AlertTriangle, ImagePlus, X,
+  Lock, BadgeCheck, Upload, AlertTriangle, ImagePlus, X, BatteryCharging, Plug,
 } from 'lucide-react';
 import { useRouter } from '@/context/RouterContext';
 import { useAuth } from '@/context/AuthContext';
@@ -10,6 +10,10 @@ import { supabase } from '@/lib/supabase';
 import { MAKES, CHINESE_PORTS, VEHICLE_TYPE_LABELS, YEAR_RANGE } from '@/lib/constants';
 
 type Role = 'select' | 'marketer' | 'direct';
+
+const CHARGING_TYPE_OPTIONS = [
+  'CCS2', 'CCS2 / CHAdeMO', 'CCS2 / GB/T', 'GB/T', 'NIO Swap/CCS2', 'Tesla CCS2', 'AC Level 2', 'AC Level 1',
+];
 
 export function SellPage() {
   const { navigate } = useRouter();
@@ -21,6 +25,8 @@ export function SellPage() {
     make: '', model: '', year: '2023', vehicleType: 'ICE',
     steeringSide: 'LHD', price: '', mileage: '', color: '',
     portChina: 'Guangzhou', description: '',
+    phone: '', whatsapp: '',
+    batteryCapacity: '', batterySOH: '', rangeKm: '', chargingType: 'CCS2', hasHomeCharger: false,
   });
   const [inspectionFile, setInspectionFile] = useState<File | null>(null);
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
@@ -31,6 +37,7 @@ export function SellPage() {
 
   const MAX_PHOTOS = 10;
   const MIN_PHOTOS = 3;
+  const isElectrified = form.vehicleType !== 'ICE';
 
   function addPhotos(files: FileList | null) {
     if (!files) return;
@@ -64,6 +71,10 @@ export function SellPage() {
       setSubmitError('Your account isn\'t fully loaded yet. Please sign out and sign back in, then try again.');
       return;
     }
+    if (!form.phone && !form.whatsapp) {
+      setSubmitError('Please provide at least one contact method (phone or WhatsApp) so buyers can reach you.');
+      return;
+    }
     if (!inspectionFile) {
       setSubmitError('Please upload an inspection report before submitting.');
       return;
@@ -74,6 +85,18 @@ export function SellPage() {
     }
 
     setUploading(true);
+
+    // Keep the seller's contact details on their profile, so buyers reaching out later have a current number.
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ phone: form.phone, whatsapp: form.whatsapp })
+      .eq('id', profile.id);
+
+    if (profileError) {
+      setUploading(false);
+      setSubmitError(`Could not save contact details: ${profileError.message}`);
+      return;
+    }
 
     const fileExt = inspectionFile.name.split('.').pop();
     const filePath = `${profile.id}/${Date.now()}.${fileExt}`;
@@ -135,6 +158,11 @@ export function SellPage() {
       is_featured: false,
       images: uploadedImageUrls,
       inspection_report_url: publicUrl,
+      battery_capacity_kwh: isElectrified && form.batteryCapacity ? Number(form.batteryCapacity) : null,
+      battery_soh: isElectrified && form.batterySOH ? Number(form.batterySOH) : null,
+      range_km: isElectrified && form.rangeKm ? Number(form.rangeKm) : null,
+      charging_type: isElectrified ? form.chargingType : null,
+      has_home_charger: isElectrified ? form.hasHomeCharger : false,
     }).select().single();
 
     setUploading(false);
@@ -299,6 +327,59 @@ export function SellPage() {
               </FormField>
             </div>
 
+            {/* EV / Hybrid battery details */}
+            {isElectrified && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <BatteryCharging className="w-5 h-5 text-emerald-600" />
+                  <h3 className="font-semibold text-slate-900 text-sm">Battery & Charging Details</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField label="Battery Capacity (kWh)">
+                    <input type="number" step="0.1" value={form.batteryCapacity} onChange={(e) => setForm({ ...form, batteryCapacity: e.target.value })} placeholder="e.g. 75" className="form-input" />
+                  </FormField>
+                  <FormField label="Battery State of Health (SOH %)">
+                    <input type="number" min={0} max={100} value={form.batterySOH} onChange={(e) => setForm({ ...form, batterySOH: e.target.value })} placeholder="e.g. 92" className="form-input" />
+                  </FormField>
+                  <FormField label="Range (km, CLTC)">
+                    <input type="number" value={form.rangeKm} onChange={(e) => setForm({ ...form, rangeKm: e.target.value })} placeholder="e.g. 450" className="form-input" />
+                  </FormField>
+                  <FormField label="Charging Connector Type">
+                    <select value={form.chargingType} onChange={(e) => setForm({ ...form, chargingType: e.target.value })} className="form-input">
+                      {CHARGING_TYPE_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </FormField>
+                </div>
+                <label className="flex items-center gap-2.5 mt-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.hasHomeCharger}
+                    onChange={(e) => setForm({ ...form, hasHomeCharger: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="text-sm text-slate-700 flex items-center gap-1.5">
+                    <Plug className="w-4 h-4 text-emerald-600" /> Home charger included with this vehicle
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {/* Contact details */}
+            <div>
+              <h3 className="font-semibold text-slate-900 text-sm mb-1">Your Contact Details</h3>
+              <p className="text-xs text-slate-400 mb-3">
+                Shown to buyers only after they message you about this listing — not published publicly on the listing itself.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Phone Number">
+                  <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+233 20 000 0000" className="form-input" />
+                </FormField>
+                <FormField label="WhatsApp Number">
+                  <input type="tel" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} placeholder="+233 20 000 0000" className="form-input" />
+                </FormField>
+              </div>
+            </div>
+
             <FormField label="Description">
               <textarea
                 value={form.description}
@@ -402,8 +483,8 @@ export function SellPage() {
             <div className="bg-emerald-50 rounded-xl p-4 flex gap-3">
               <Lock className="w-5 h-5 text-emerald-600 shrink-0" />
               <div className="text-sm text-emerald-800">
-                <p className="font-semibold mb-1">Escrow Protection</p>
-                <p className="text-xs">All transactions are protected by escrow. Buyers' payments are held until the vehicle clears customs and passes inspection at the destination port.</p>
+                <p className="font-semibold mb-1">Staged Payment Protection</p>
+                <p className="text-xs">Buyers never pay the full amount upfront — final payment is only released once the vehicle's shipment has been verified.</p>
               </div>
             </div>
 
