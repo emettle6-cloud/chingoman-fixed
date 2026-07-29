@@ -9,7 +9,7 @@ interface AuthContextValue {
   profile: Profile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string, fullName: string, userType: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, fullName: string, userType: string) => Promise<{ error: string | null; needsEmailConfirmation: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -62,14 +62,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signUp(email: string, password: string, fullName: string, userType: string) {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { full_name: fullName, user_type: userType },
       },
     });
-    return { error: error?.message ?? null };
+    // Supabase issues no session yet when "Confirm email" is enabled on the project —
+    // the caller uses this to tell the person to check their inbox instead of assuming
+    // they're signed in.
+    const needsEmailConfirmation = !error && !data.session;
+    return { error: error?.message ?? null, needsEmailConfirmation };
   }
 
   async function signOut() {
