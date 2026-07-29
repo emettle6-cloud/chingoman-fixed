@@ -1,6 +1,6 @@
 import { Gauge, Calendar, Fuel, ShipWheel, BadgeCheck, BatteryCharging, MapPin, Camera } from 'lucide-react';
 import type { Vehicle } from '@/types';
-import { VEHICLE_TYPE_COLORS, VEHICLE_TYPE_SHORT, SOH_RATING } from '@/lib/constants';
+import { VEHICLE_TYPE_COLORS, VEHICLE_TYPE_SHORT, SOH_RATING, VEHICLE_STATUS_LABELS } from '@/lib/constants';
 import { formatUSD } from '@/lib/cif';
 import { useRouter } from '@/context/RouterContext';
 
@@ -13,6 +13,7 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
   const soh = vehicle.battery_soh !== null ? SOH_RATING(vehicle.battery_soh) : null;
   const typeColor = VEHICLE_TYPE_COLORS[vehicle.vehicle_type] ?? VEHICLE_TYPE_COLORS.ICE;
   const image = vehicle.images?.[0] ?? null;
+  const unavailable = vehicle.status === 'sold' || vehicle.status === 'out_of_stock';
 
   return (
     <button
@@ -24,12 +25,19 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
           <img
             src={image}
             alt={`${vehicle.make} ${vehicle.model}`}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${unavailable ? 'grayscale opacity-70' : ''}`}
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
             <Camera className="w-8 h-8 mb-1.5" />
             <span className="text-xs font-medium">No photo yet</span>
+          </div>
+        )}
+        {unavailable && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/20">
+            <span className="px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-wide bg-slate-900 text-white shadow-lg">
+              {VEHICLE_STATUS_LABELS[vehicle.status]}
+            </span>
           </div>
         )}
         <div className="absolute top-3 left-3 flex gap-2">
@@ -85,7 +93,7 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
         <div className="flex items-end justify-between pt-2 border-t border-slate-100">
           <div>
             <p className="text-xs text-slate-500">Price (FOB)</p>
-            <p className="text-xl font-bold text-slate-900">{formatUSD(Number(vehicle.price_usd))}</p>
+            <p className={`text-xl font-bold ${unavailable ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{formatUSD(Number(vehicle.price_usd))}</p>
           </div>
           <span className="text-xs font-medium text-green-600 group-hover:underline">View Details →</span>
         </div>
