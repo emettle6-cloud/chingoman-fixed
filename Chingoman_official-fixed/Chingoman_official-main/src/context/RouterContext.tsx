@@ -9,6 +9,7 @@ export type Route =
   | { name: 'guide' }
   | { name: 'dashboard' }
   | { name: 'admin' }
+  | { name: 'messages'; withProfileId?: string; vehicleId?: string }
   | { name: 'about' };
 
 interface RouterContextValue {
