@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ArrowLeft, BadgeCheck, Calendar, Gauge, Fuel, ShipWheel, BatteryCharging,
   MapPin, Ship, ShieldCheck, Lock, FileText, MessageSquare, Heart, Share2,
-  Calculator, Zap, Cog, Palette, CheckCircle2, AlertTriangle, Car,
+  Calculator, Zap, Cog, Palette, CheckCircle2, AlertTriangle, Car, Plug, Send,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Vehicle, Inspection } from '@/types';
@@ -27,6 +27,10 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
   const [showContact, setShowContact] = useState(false);
+  const [messageText, setMessageText] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageSent, setMessageSent] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [favorited, setFavorited] = useState(false);
   const [cifPreview, setCifPreview] = useState<{ totalCIF: number; landedCost: number } | null>(null);
@@ -102,6 +106,39 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
       supabase.from('favorites').insert({ vehicle_id: vehicle!.id, user_id: profile.id })
         .then(({ error }) => { if (!error) setFavorited(true); });
     }
+  }
+
+  async function sendMessage() {
+    if (!user || !profile || !vehicle) return;
+    if (!vehicle.seller_id) {
+      setMessageError('This listing has no seller on record — please contact support instead.');
+      return;
+    }
+    if (vehicle.seller_id === profile.id) {
+      setMessageError('This is your own listing.');
+      return;
+    }
+    if (!messageText.trim()) return;
+
+    setSendingMessage(true);
+    setMessageError(null);
+
+    const { error } = await supabase.from('messages').insert({
+      sender_id: profile.id,
+      receiver_id: vehicle.seller_id,
+      vehicle_id: vehicle.id,
+      content: messageText.trim(),
+    });
+
+    setSendingMessage(false);
+
+    if (error) {
+      setMessageError(`Could not send message: ${error.message}`);
+      return;
+    }
+
+    setMessageText('');
+    setMessageSent(true);
   }
 
   return (
@@ -225,6 +262,12 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                   </div>
                 )}
               </div>
+
+              {vehicle.has_home_charger && (
+                <div className="flex items-center gap-2 bg-emerald-100 text-emerald-800 rounded-xl px-4 py-3 mb-5 text-sm font-medium">
+                  <Plug className="w-4 h-4" /> Home charger included with this vehicle
+                </div>
+              )}
 
               {chargingAdvice && (
                 <div className="bg-white rounded-xl p-4 border border-emerald-100">
@@ -389,22 +432,46 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 </div>
               </div>
 
-              {/* Contact info reveal */}
+              {/* Message composer */}
               {showContact && (
-                <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
-                  <p className="text-sm font-semibold text-slate-900">Seller Information</p>
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    {vehicle.is_verified ? 'Verified seller' : 'Unverified seller'}
-                  </div>
-                  {vehicle.listing_type === 'marketer' && (
-                    <p className="text-xs text-slate-500">
-                      This is a marketer listing — the marketer is based in Ghana and facilitates the purchase of a vehicle currently in China.
-                    </p>
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                  {messageSent ? (
+                    <div className="text-center py-2">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                      <p className="text-sm font-semibold text-slate-900">Message sent</p>
+                      <p className="text-xs text-slate-500 mt-1 mb-3">
+                        The seller will reply through Chin-go-man's messaging system.
+                      </p>
+                      <button
+                        onClick={() => navigate({ name: 'messages', withProfileId: vehicle.seller_id ?? undefined, vehicleId: vehicle.id })}
+                        className="text-sm text-green-600 font-semibold hover:underline"
+                      >
+                        View conversation →
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-slate-900 mb-1">Message the Seller</p>
+                      <p className="text-xs text-slate-500 mb-3">
+                        Sent securely through Chin-go-man's in-app messaging. Never send payment outside the platform.
+                      </p>
+                      <textarea
+                        value={messageText}
+                        onChange={(e) => setMessageText(e.target.value)}
+                        rows={3}
+                        placeholder={`Hi, I'm interested in the ${vehicle.year} ${vehicle.make} ${vehicle.model}...`}
+                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm outline-none focus:border-green-400 resize-none"
+                      />
+                      {messageError && <p className="text-xs text-red-600 mt-1.5">{messageError}</p>}
+                      <button
+                        onClick={sendMessage}
+                        disabled={sendingMessage || !messageText.trim()}
+                        className="mt-2.5 w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
+                      >
+                        <Send className="w-4 h-4" /> {sendingMessage ? 'Sending...' : 'Send Message'}
+                      </button>
+                    </>
                   )}
-                  <p className="text-xs text-slate-500">
-                    Use the in-app messaging system for your safety. Chin-go-man's staged payment process protects every transaction.
-                  </p>
                 </div>
               )}
             </div>
