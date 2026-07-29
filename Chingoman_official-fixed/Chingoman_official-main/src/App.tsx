@@ -10,6 +10,7 @@ import { SellPage } from '@/pages/SellPage';
 import { ImportGuidePage } from '@/pages/ImportGuidePage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { AdminDashboardPage } from '@/pages/AdminDashboardPage';
+import { MessagesPage } from '@/pages/MessagesPage';
 import { AboutPage } from '@/pages/AboutPage';
 
 function PageRouter() {
@@ -24,6 +25,7 @@ function PageRouter() {
     case 'guide': return <ImportGuidePage />;
     case 'dashboard': return <DashboardPage />;
     case 'admin': return <AdminDashboardPage />;
+    case 'messages': return <MessagesPage />;
     case 'about': return <AboutPage />;
     default: return <HomePage />;
   }
