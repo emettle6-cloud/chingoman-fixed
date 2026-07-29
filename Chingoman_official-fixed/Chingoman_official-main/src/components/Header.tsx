@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { Menu, X, Heart, User as UserIcon, LogOut, LayoutDashboard, ShieldCheck } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Menu, X, Heart, User as UserIcon, LogOut, LayoutDashboard, ShieldCheck, MessageSquare } from 'lucide-react';
 import { useRouter, type Route } from '@/context/RouterContext';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { AuthModal } from './AuthModal';
 
 export function Header() {
@@ -11,6 +12,17 @@ export function Header() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [userMenu, setUserMenu] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!profile) { setUnreadCount(0); return; }
+    supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('receiver_id', profile.id)
+      .eq('is_read', false)
+      .then(({ count }) => setUnreadCount(count ?? 0));
+  }, [profile]);
 
   const navItems: { label: string; route: Route }[] = [
     { label: 'Browse Cars', route: { name: 'browse' } },
@@ -82,6 +94,19 @@ export function Header() {
                           className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                         >
                           <LayoutDashboard className="w-4 h-4" /> Dashboard
+                        </button>
+                        <button
+                          onClick={() => { navigate({ name: 'messages' }); setUserMenu(false); }}
+                          className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <span className="flex items-center gap-2.5">
+                            <MessageSquare className="w-4 h-4" /> Messages
+                          </span>
+                          {unreadCount > 0 && (
+                            <span className="bg-green-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                              {unreadCount}
+                            </span>
+                          )}
                         </button>
                         {profile?.is_admin && (
                           <button
