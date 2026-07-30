@@ -26,6 +26,7 @@ export function Header() {
 
   const navItems: { label: string; route: Route }[] = [
     { label: 'Browse Cars', route: { name: 'browse' } },
+    { label: 'Spare Parts', route: { name: 'parts' } },
     { label: 'CIF Calculator', route: { name: 'cif' } },
     { label: 'Sell a Car', route: { name: 'sell' } },
     { label: 'Import Guide', route: { name: 'guide' } },
