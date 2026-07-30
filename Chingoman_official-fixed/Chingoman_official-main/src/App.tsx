@@ -12,6 +12,9 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { AdminDashboardPage } from '@/pages/AdminDashboardPage';
 import { MessagesPage } from '@/pages/MessagesPage';
 import { AboutPage } from '@/pages/AboutPage';
+import { SparePartsPage } from '@/pages/SparePartsPage';
+import { SparePartDetailPage } from '@/pages/SparePartDetailPage';
+import { SellPartPage } from '@/pages/SellPartPage';
 
 function PageRouter() {
   const { route } = useRouter();
@@ -27,6 +30,9 @@ function PageRouter() {
     case 'admin': return <AdminDashboardPage />;
     case 'messages': return <MessagesPage />;
     case 'about': return <AboutPage />;
+    case 'parts': return <SparePartsPage />;
+    case 'part': return <SparePartDetailPage partId={route.id} />;
+    case 'sell-part': return <SellPartPage />;
     default: return <HomePage />;
   }
 }
