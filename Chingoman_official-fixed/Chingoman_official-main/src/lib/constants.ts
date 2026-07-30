@@ -139,3 +139,17 @@ export const VEHICLE_STATUS_COLORS: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-600 border-slate-300',
   pending: 'bg-blue-100 text-blue-700 border-blue-300',
 };
+
+export const PART_CATEGORIES = [
+  'Engine & Drivetrain',
+  'Body & Exterior',
+  'Electrical & Electronics',
+  'Battery & EV Components',
+  'Interior',
+  'Suspension & Brakes',
+  'Wheels & Tyres',
+  'Lighting',
+  'Other',
+] as const;
+
+export const PART_CONDITIONS = ['New', 'Used - Excellent', 'Used - Good', 'Refurbished'] as const;
