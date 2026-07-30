@@ -3,15 +3,16 @@ import {
   ArrowLeft, BadgeCheck, Calendar, Gauge, Fuel, ShipWheel, BatteryCharging,
   MapPin, Ship, ShieldCheck, Lock, FileText, MessageSquare, Heart, Share2,
   Calculator, Zap, Cog, Palette, CheckCircle2, AlertTriangle, Car, Plug, Send,
+  Star, PackageX,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { Vehicle, Inspection } from '@/types';
+import type { Vehicle, Inspection, Review, Profile } from '@/types';
 import { useRouter } from '@/context/RouterContext';
 import { useAuth } from '@/context/AuthContext';
 import { formatUSD, calculateCIF } from '@/lib/cif';
 import {
   VEHICLE_TYPE_LABELS, VEHICLE_TYPE_COLORS, SOH_RATING, CHARGING_ADVICE,
-  RHD_WARNING,
+  RHD_WARNING, VEHICLE_STATUS_LABELS,
 } from '@/lib/constants';
 import { AuthModal } from '@/components/AuthModal';
 
@@ -34,6 +35,13 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const [authOpen, setAuthOpen] = useState(false);
   const [favorited, setFavorited] = useState(false);
   const [cifPreview, setCifPreview] = useState<{ totalCIF: number; landedCost: number } | null>(null);
+  const [seller, setSeller] = useState<Profile | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -56,6 +64,22 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
           vehicleType: v.vehicle_type,
         });
         setCifPreview({ totalCIF: cif.totalCIF, landedCost: cif.landedCost });
+
+        if (v.seller_id) {
+          const { data: sellerData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', v.seller_id)
+            .maybeSingle();
+          setSeller(sellerData as Profile | null);
+
+          const { data: reviewData } = await supabase
+            .from('reviews')
+            .select('*, reviewer:profiles!reviews_reviewer_id_fkey(full_name, avatar_url)')
+            .eq('seller_id', v.seller_id)
+            .order('created_at', { ascending: false });
+          setReviews((reviewData as Review[]) ?? []);
+        }
       }
       setLoading(false);
     }
@@ -141,6 +165,44 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
     setMessageSent(true);
   }
 
+  async function submitReview() {
+    if (!user || !profile || !vehicle?.seller_id) return;
+    if (profile.id === vehicle.seller_id) {
+      setReviewError("You can't review your own listing.");
+      return;
+    }
+    setSubmittingReview(true);
+    setReviewError(null);
+
+    const { error } = await supabase.from('reviews').insert({
+      seller_id: vehicle.seller_id,
+      reviewer_id: profile.id,
+      vehicle_id: vehicle.id,
+      rating: reviewRating,
+      comment: reviewComment.trim() || null,
+    });
+
+    setSubmittingReview(false);
+
+    if (error) {
+      setReviewError(
+        error.code === '23505'
+          ? "You've already reviewed this seller for this vehicle."
+          : `Could not submit review: ${error.message}`
+      );
+      return;
+    }
+
+    setReviewSubmitted(true);
+    setReviewComment('');
+    const { data: reviewData } = await supabase
+      .from('reviews')
+      .select('*, reviewer:profiles!reviews_reviewer_id_fkey(full_name, avatar_url)')
+      .eq('seller_id', vehicle.seller_id)
+      .order('created_at', { ascending: false });
+    setReviews((reviewData as Review[]) ?? []);
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <button
@@ -149,6 +211,16 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
       >
         <ArrowLeft className="w-4 h-4" /> Back to Browse
       </button>
+
+      {(vehicle.status === 'sold' || vehicle.status === 'out_of_stock') && (
+        <div className="mb-4 flex items-center gap-3 bg-slate-900 text-white rounded-xl px-5 py-3.5">
+          <PackageX className="w-5 h-5 shrink-0" />
+          <p className="text-sm font-medium">
+            This vehicle is {VEHICLE_STATUS_LABELS[vehicle.status].toLowerCase()} and is no longer available for purchase.
+            {vehicle.status === 'out_of_stock' && ' The seller may restock a similar unit — message them to ask.'}
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left: Images + Details */}
@@ -341,6 +413,29 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
             </div>
           )}
 
+          {/* Seller-submitted report, shown when no formal scored inspection has been recorded yet */}
+          {!inspection && vehicle.inspection_report_url && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Inspection Report</h2>
+                  <p className="text-sm text-slate-500">Submitted by the seller with this listing.</p>
+                </div>
+              </div>
+              <a
+                href={vehicle.inspection_report_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-2 text-sm text-green-600 font-semibold hover:underline"
+              >
+                <FileText className="w-4 h-4" /> View Report
+              </a>
+            </div>
+          )}
+
           {/* Trust badges */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white rounded-2xl border border-slate-200 p-5 flex gap-3">
@@ -358,6 +453,85 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               </div>
             </div>
           </div>
+
+          {/* Seller reviews */}
+          {seller && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-slate-900">Seller Reviews</h2>
+                {seller.total_reviews > 0 ? (
+                  <div className="flex items-center gap-1.5">
+                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                    <span className="font-semibold text-slate-900">{seller.rating.toFixed(1)}</span>
+                    <span className="text-sm text-slate-500">({seller.total_reviews} review{seller.total_reviews === 1 ? '' : 's'})</span>
+                  </div>
+                ) : (
+                  <span className="text-sm text-slate-400">No reviews yet</span>
+                )}
+              </div>
+
+              {reviews.length > 0 && (
+                <div className="space-y-4 mb-5">
+                  {reviews.map((r) => (
+                    <div key={r.id} className="border-b border-slate-100 last:border-0 pb-4 last:pb-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-slate-900 text-sm">{r.reviewer?.full_name || 'Chin-go-man user'}</span>
+                        <div className="flex items-center gap-0.5">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star key={i} className={`w-3.5 h-3.5 ${i < r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} />
+                          ))}
+                        </div>
+                      </div>
+                      {r.comment && <p className="text-sm text-slate-600">{r.comment}</p>}
+                      <p className="text-xs text-slate-400 mt-1">{new Date(r.created_at).toLocaleDateString()}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Leave a review */}
+              {user && profile && profile.id !== vehicle.seller_id && (
+                <div className="bg-slate-50 rounded-xl p-4">
+                  {reviewSubmitted ? (
+                    <p className="text-sm text-emerald-700 font-medium flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" /> Thanks — your review has been posted.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-slate-900 mb-2">Leave a review for this seller</p>
+                      <div className="flex items-center gap-1 mb-3">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <button key={i} type="button" onClick={() => setReviewRating(i + 1)}>
+                            <Star className={`w-6 h-6 ${i < reviewRating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
+                          </button>
+                        ))}
+                      </div>
+                      <textarea
+                        value={reviewComment}
+                        onChange={(e) => setReviewComment(e.target.value)}
+                        rows={2}
+                        placeholder="Share how your purchase went (optional)"
+                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm outline-none focus:border-green-400 resize-none mb-2"
+                      />
+                      {reviewError && <p className="text-xs text-red-600 mb-2">{reviewError}</p>}
+                      <button
+                        onClick={submitReview}
+                        disabled={submittingReview}
+                        className="text-sm bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
+                      >
+                        {submittingReview ? 'Submitting...' : 'Submit Review'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+              {!user && (
+                <button onClick={() => setAuthOpen(true)} className="text-sm text-green-600 font-semibold hover:underline">
+                  Sign in to leave a review →
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right: Sticky purchase panel */}
@@ -410,7 +584,8 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                   onClick={() => { if (!user) setAuthOpen(true); else setShowContact(true); }}
                   className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
                 >
-                  <MessageSquare className="w-5 h-5" /> Contact Seller
+                  <MessageSquare className="w-5 h-5" />
+                  {vehicle.status === 'sold' || vehicle.status === 'out_of_stock' ? 'Ask About Similar Vehicles' : 'Contact Seller'}
                 </button>
                 <div className="flex gap-2.5">
                   <button
@@ -483,7 +658,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               </h3>
               <div className="space-y-2 text-sm">
                 <TrustRow label="Inspection Verified" value={vehicle.is_verified} />
-                <TrustRow label="Inspection Report" value={!!inspection} />
+                <TrustRow label="Inspection Report" value={!!inspection || !!vehicle.inspection_report_url} />
                 <TrustRow label="Battery SOH Reported" value={vehicle.battery_soh !== null} />
                 <TrustRow label="Staged Payments Available" value={true} />
                 <TrustRow label="Shipping Available" value={vehicle.shipping_available} />
