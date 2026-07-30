@@ -10,6 +10,7 @@ import type { Vehicle, Inspection, Review, Profile } from '@/types';
 import { useRouter } from '@/context/RouterContext';
 import { useAuth } from '@/context/AuthContext';
 import { formatUSD, calculateCIF } from '@/lib/cif';
+import { useUSDtoGHSRate, formatGHS } from '@/lib/exchangeRate';
 import {
   VEHICLE_TYPE_LABELS, VEHICLE_TYPE_COLORS, SOH_RATING, CHARGING_ADVICE,
   RHD_WARNING, VEHICLE_STATUS_LABELS,
@@ -22,6 +23,7 @@ interface VehicleDetailPageProps {
 
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const { navigate } = useRouter();
+  const { rate: ghsRate } = useUSDtoGHSRate();
   const { user, profile } = useAuth();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [inspection, setInspection] = useState<Inspection | null>(null);
@@ -546,6 +548,9 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               <div className="mb-4">
                 <p className="text-xs text-slate-500">Vehicle Price (FOB)</p>
                 <p className="text-3xl font-bold text-slate-900">{formatUSD(Number(vehicle.price_usd))}</p>
+                {ghsRate && (
+                  <p className="text-sm text-slate-400">≈ {formatGHS(Number(vehicle.price_usd), ghsRate)}</p>
+                )}
               </div>
 
               {/* CIF preview */}
@@ -568,6 +573,12 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                       <span className="font-bold text-slate-900">Est. Landed Cost</span>
                       <span className="font-bold text-green-700">{formatUSD(cifPreview.landedCost)}</span>
                     </div>
+                    {ghsRate && (
+                      <div className="flex justify-between text-xs text-slate-400">
+                        <span></span>
+                        <span>≈ {formatGHS(cifPreview.landedCost, ghsRate)}</span>
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => navigate({ name: 'cif' })}
