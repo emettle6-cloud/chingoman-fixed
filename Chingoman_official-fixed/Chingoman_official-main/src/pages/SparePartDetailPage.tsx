@@ -79,7 +79,8 @@ export function SparePartDetailPage({ partId }: SparePartDetailPageProps) {
     const { error } = await supabase.from('messages').insert({
       sender_id: profile.id,
       receiver_id: part.seller_id,
-      content: `[Re: spare part — ${part.name}] ${messageText.trim()}`,
+      part_id: part.id,
+      content: messageText.trim(),
     });
 
     setSendingMessage(false);
@@ -220,7 +221,7 @@ export function SparePartDetailPage({ partId }: SparePartDetailPageProps) {
                         The seller will reply through Chin-go-man's messaging system.
                       </p>
                       <button
-                        onClick={() => navigate({ name: 'messages', withProfileId: part.seller_id ?? undefined })}
+                        onClick={() => navigate({ name: 'messages', withProfileId: part.seller_id ?? undefined, partId: part.id })}
                         className="text-sm text-green-600 font-semibold hover:underline"
                       >
                         View conversation →
