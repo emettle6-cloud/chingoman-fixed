@@ -3,14 +3,13 @@ import {
   ArrowLeft, BadgeCheck, Calendar, Gauge, Fuel, ShipWheel, BatteryCharging,
   MapPin, Ship, ShieldCheck, Lock, FileText, MessageSquare, Heart, Share2,
   Calculator, Zap, Cog, Palette, CheckCircle2, AlertTriangle, Car, Plug, Send,
-  Star, PackageX,
+  Star, PackageX, Phone, MessageCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Vehicle, Inspection, Review, Profile } from '@/types';
 import { useRouter } from '@/context/RouterContext';
 import { useAuth } from '@/context/AuthContext';
 import { formatUSD, calculateCIF } from '@/lib/cif';
-import { useUSDtoGHSRate, formatGHS } from '@/lib/exchangeRate';
 import {
   VEHICLE_TYPE_LABELS, VEHICLE_TYPE_COLORS, SOH_RATING, CHARGING_ADVICE,
   RHD_WARNING, VEHICLE_STATUS_LABELS,
@@ -23,7 +22,6 @@ interface VehicleDetailPageProps {
 
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const { navigate } = useRouter();
-  const { rate: ghsRate } = useUSDtoGHSRate();
   const { user, profile } = useAuth();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [inspection, setInspection] = useState<Inspection | null>(null);
@@ -548,9 +546,6 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               <div className="mb-4">
                 <p className="text-xs text-slate-500">Vehicle Price (FOB)</p>
                 <p className="text-3xl font-bold text-slate-900">{formatUSD(Number(vehicle.price_usd))}</p>
-                {ghsRate && (
-                  <p className="text-sm text-slate-400">≈ {formatGHS(Number(vehicle.price_usd), ghsRate)}</p>
-                )}
               </div>
 
               {/* CIF preview */}
@@ -573,12 +568,6 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                       <span className="font-bold text-slate-900">Est. Landed Cost</span>
                       <span className="font-bold text-green-700">{formatUSD(cifPreview.landedCost)}</span>
                     </div>
-                    {ghsRate && (
-                      <div className="flex justify-between text-xs text-slate-400">
-                        <span></span>
-                        <span>≈ {formatGHS(cifPreview.landedCost, ghsRate)}</span>
-                      </div>
-                    )}
                   </div>
                   <button
                     onClick={() => navigate({ name: 'cif' })}
@@ -598,6 +587,48 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                   <MessageSquare className="w-5 h-5" />
                   {vehicle.status === 'sold' || vehicle.status === 'out_of_stock' ? 'Ask About Similar Vehicles' : 'Contact Seller'}
                 </button>
+
+                {seller && (seller.phone || seller.whatsapp) && (
+                  <div className="flex gap-2.5">
+                    {seller.phone && (
+                      user ? (
+                        <a
+                          href={`tel:${seller.phone}`}
+                          className="flex-1 border border-slate-200 py-2.5 rounded-xl font-medium text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Phone className="w-4 h-4" /> Call
+                        </a>
+                      ) : (
+                        <button
+                          onClick={() => setAuthOpen(true)}
+                          className="flex-1 border border-slate-200 py-2.5 rounded-xl font-medium text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Phone className="w-4 h-4" /> Call
+                        </button>
+                      )
+                    )}
+                    {seller.whatsapp && (
+                      user ? (
+                        <a
+                          href={`https://wa.me/${seller.whatsapp.replace(/[^\d]/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 border border-emerald-200 bg-emerald-50 py-2.5 rounded-xl font-medium text-sm text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <MessageCircle className="w-4 h-4" /> WhatsApp
+                        </a>
+                      ) : (
+                        <button
+                          onClick={() => setAuthOpen(true)}
+                          className="flex-1 border border-emerald-200 bg-emerald-50 py-2.5 rounded-xl font-medium text-sm text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <MessageCircle className="w-4 h-4" /> WhatsApp
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
+
                 <div className="flex gap-2.5">
                   <button
                     onClick={toggleFavorite}
