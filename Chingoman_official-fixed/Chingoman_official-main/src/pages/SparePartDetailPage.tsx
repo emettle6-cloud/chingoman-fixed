@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft, MessageSquare, Share2, CheckCircle2, Send, Wrench, MapPin,
-  Package, Lock, PackageX,
+  Package, Lock, PackageX, Phone, MessageCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { SparePart } from '@/types';
+import type { SparePart, Profile } from '@/types';
 import { useRouter } from '@/context/RouterContext';
 import { useAuth } from '@/context/AuthContext';
 import { formatUSD } from '@/lib/cif';
@@ -19,6 +19,7 @@ export function SparePartDetailPage({ partId }: SparePartDetailPageProps) {
   const { navigate } = useRouter();
   const { user, profile } = useAuth();
   const [part, setPart] = useState<SparePart | null>(null);
+  const [seller, setSeller] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
   const [showContact, setShowContact] = useState(false);
@@ -33,6 +34,11 @@ export function SparePartDetailPage({ partId }: SparePartDetailPageProps) {
       setLoading(true);
       const { data } = await supabase.from('spare_parts').select('*').eq('id', partId).maybeSingle();
       setPart(data as SparePart | null);
+      const p = data as SparePart | null;
+      if (p?.seller_id) {
+        const { data: sellerData } = await supabase.from('profiles').select('*').eq('id', p.seller_id).maybeSingle();
+        setSeller(sellerData as Profile | null);
+      }
       setLoading(false);
     }
     load();
@@ -203,6 +209,39 @@ export function SparePartDetailPage({ partId }: SparePartDetailPageProps) {
                 >
                   <MessageSquare className="w-5 h-5" /> Contact Seller
                 </button>
+
+                {seller && (seller.phone || seller.whatsapp) && (
+                  <div className="flex gap-2.5">
+                    {seller.phone && (
+                      user ? (
+                        <a href={`tel:${seller.phone}`} className="flex-1 border border-slate-200 py-2.5 rounded-xl font-medium text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                          <Phone className="w-4 h-4" /> Call
+                        </a>
+                      ) : (
+                        <button onClick={() => setAuthOpen(true)} className="flex-1 border border-slate-200 py-2.5 rounded-xl font-medium text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                          <Phone className="w-4 h-4" /> Call
+                        </button>
+                      )
+                    )}
+                    {seller.whatsapp && (
+                      user ? (
+                        <a
+                          href={`https://wa.me/${seller.whatsapp.replace(/[^\d]/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 border border-emerald-200 bg-emerald-50 py-2.5 rounded-xl font-medium text-sm text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <MessageCircle className="w-4 h-4" /> WhatsApp
+                        </a>
+                      ) : (
+                        <button onClick={() => setAuthOpen(true)} className="flex-1 border border-emerald-200 bg-emerald-50 py-2.5 rounded-xl font-medium text-sm text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2">
+                          <MessageCircle className="w-4 h-4" /> WhatsApp
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
+
                 <button
                   onClick={() => navigator.clipboard?.writeText(window.location.href)}
                   className="w-full border border-slate-200 py-2.5 rounded-xl font-medium text-sm text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
