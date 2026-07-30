@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Car, Heart, MessageSquare, Ship, TrendingUp, Plus, Eye, PackageX, RotateCcw } from 'lucide-react';
+import { Car, Heart, MessageSquare, Ship, TrendingUp, Plus, Eye, PackageX, RotateCcw, Wrench } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from '@/context/RouterContext';
 import { supabase } from '@/lib/supabase';
-import type { Vehicle, Favorite } from '@/types';
+import type { Vehicle, Favorite, SparePart } from '@/types';
 import { VehicleCard } from '@/components/VehicleCard';
+import { SparePartCard } from '@/components/SparePartCard';
 import { formatUSD } from '@/lib/cif';
 import { VEHICLE_STATUS_LABELS, VEHICLE_STATUS_COLORS } from '@/lib/constants';
 
@@ -12,6 +13,7 @@ export function DashboardPage() {
   const { user, profile, loading } = useAuth();
   const { navigate } = useRouter();
   const [myListings, setMyListings] = useState<Vehicle[]>([]);
+  const [myParts, setMyParts] = useState<SparePart[]>([]);
   const [favorites, setFavorites] = useState<Vehicle[]>([]);
   const [stats, setStats] = useState({ listings: 0, favorites: 0, views: 0 });
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -28,6 +30,13 @@ export function DashboardPage() {
         setMyListings(vehicles);
         setStats((s) => ({ ...s, listings: vehicles.length, views: vehicles.reduce((sum, v) => sum + (v.views || 0), 0) }));
       });
+
+    supabase
+      .from('spare_parts')
+      .select('*')
+      .eq('seller_id', profile.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setMyParts((data as SparePart[]) ?? []));
   }
 
   async function updateListingStatus(id: string, status: 'active' | 'sold' | 'out_of_stock') {
@@ -36,6 +45,14 @@ export function DashboardPage() {
     setUpdatingId(null);
     if (error) { alert(`Could not update listing: ${error.message}`); return; }
     setMyListings((prev) => prev.map((v) => (v.id === id ? { ...v, status } : v)));
+  }
+
+  async function updatePartStatus(id: string, status: 'active' | 'sold' | 'out_of_stock') {
+    setUpdatingId(id);
+    const { error } = await supabase.from('spare_parts').update({ status }).eq('id', id);
+    setUpdatingId(null);
+    if (error) { alert(`Could not update listing: ${error.message}`); return; }
+    setMyParts((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
   }
 
   useEffect(() => {
@@ -82,12 +99,20 @@ export function DashboardPage() {
           <h1 className="text-3xl font-bold text-slate-900">My Dashboard</h1>
           <p className="text-slate-500 mt-1">Welcome back, {profile?.full_name?.split(' ')[0] || 'there'}</p>
         </div>
-        <button
-          onClick={() => navigate({ name: 'sell' })}
-          className="bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" /> List a Vehicle
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => navigate({ name: 'sell-part' })}
+            className="border border-slate-200 text-slate-700 font-semibold px-5 py-2.5 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" /> List a Part
+          </button>
+          <button
+            onClick={() => navigate({ name: 'sell' })}
+            className="bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" /> List a Vehicle
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -151,6 +176,64 @@ export function DashboardPage() {
             <p className="text-slate-500 font-medium">No listings yet</p>
             <button onClick={() => navigate({ name: 'sell' })} className="mt-3 text-green-600 font-semibold hover:underline">
               List your first vehicle →
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* My spare parts */}
+      <div className="mb-10">
+        <h2 className="text-xl font-bold text-slate-900 mb-4">My Spare Parts</h2>
+        {myParts.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {myParts.map((p) => (
+              <div key={p.id}>
+                <SparePartCard part={p} />
+                <div className="mt-2.5 flex items-center justify-between gap-2">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${VEHICLE_STATUS_COLORS[p.status]}`}>
+                    {VEHICLE_STATUS_LABELS[p.status]}
+                  </span>
+                  {(p.status === 'active' || p.status === 'sold' || p.status === 'out_of_stock') && (
+                    <div className="flex items-center gap-1.5">
+                      {p.status === 'active' ? (
+                        <>
+                          <button
+                            onClick={() => updatePartStatus(p.id, 'out_of_stock')}
+                            disabled={updatingId === p.id}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 hover:underline disabled:opacity-50"
+                          >
+                            <PackageX className="w-3.5 h-3.5" /> Out of Stock
+                          </button>
+                          <span className="text-slate-300">·</span>
+                          <button
+                            onClick={() => updatePartStatus(p.id, 'sold')}
+                            disabled={updatingId === p.id}
+                            className="text-xs font-medium text-slate-600 hover:underline disabled:opacity-50"
+                          >
+                            Mark Sold
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => updatePartStatus(p.id, 'active')}
+                          disabled={updatingId === p.id}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:underline disabled:opacity-50"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" /> Mark Available
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center">
+            <Wrench className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+            <p className="text-slate-500 font-medium">No spare parts listed yet</p>
+            <button onClick={() => navigate({ name: 'sell-part' })} className="mt-3 text-green-600 font-semibold hover:underline">
+              List your first part →
             </button>
           </div>
         )}
