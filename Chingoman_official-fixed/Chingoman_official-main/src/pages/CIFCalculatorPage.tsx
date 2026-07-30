@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { Calculator, Ship, Info, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { CHINESE_PORTS, DESTINATION_PORTS, VEHICLE_TYPE_LABELS } from '@/lib/constants';
 import { calculateCIF, formatUSD } from '@/lib/cif';
+import { useUSDtoGHSRate, formatGHS } from '@/lib/exchangeRate';
 import { useRouter } from '@/context/RouterContext';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 
 export function CIFCalculatorPage() {
   const { navigate } = useRouter();
+  const { rate: ghsRate } = useUSDtoGHSRate();
   const { user } = useAuth();
   const [carValue, setCarValue] = useState('25000');
   const [portChina, setPortChina] = useState('Guangzhou');
@@ -142,6 +144,11 @@ export function CIFCalculatorPage() {
                       <span className="font-bold text-slate-900">Estimated Landed Cost</span>
                       <span className="text-2xl font-bold text-green-600">{formatUSD(result.landedCost)}</span>
                     </div>
+                    {ghsRate && (
+                      <p className="text-right text-xs text-slate-400 mt-0.5">
+                        ≈ {formatGHS(result.landedCost, ghsRate)}
+                      </p>
+                    )}
                   </div>
                 </div>
 
