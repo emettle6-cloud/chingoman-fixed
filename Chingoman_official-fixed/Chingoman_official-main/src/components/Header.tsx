@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Menu, X, Heart, User as UserIcon, LogOut, LayoutDashboard, ShieldCheck, MessageSquare } from 'lucide-react';
+import { Menu, X, Heart, User as UserIcon, LogOut, LayoutDashboard, ShieldCheck, MessageSquare, Home } from 'lucide-react';
 import { useRouter, type Route } from '@/context/RouterContext';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -25,6 +25,7 @@ export function Header() {
   }, [profile]);
 
   const navItems: { label: string; route: Route }[] = [
+    { label: 'Home', route: { name: 'home' } },
     { label: 'Browse Cars', route: { name: 'browse' } },
     { label: 'Spare Parts', route: { name: 'parts' } },
     { label: 'CIF Calculator', route: { name: 'cif' } },
