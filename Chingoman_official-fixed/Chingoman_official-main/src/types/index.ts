@@ -41,6 +41,33 @@ export interface Vehicle {
   updated_at: string;
 }
 
+export type PartCategory =
+  | 'engine' | 'body' | 'electrical' | 'battery' | 'brakes' | 'suspension' | 'interior' | 'wheels_tyres' | 'other';
+export type PartCondition = 'new' | 'used' | 'refurbished';
+
+export interface SparePart {
+  id: string;
+  seller_id: string | null;
+  name: string;
+  category: PartCategory;
+  compatible_make: string | null;
+  compatible_model: string | null;
+  compatible_year_from: number | null;
+  compatible_year_to: number | null;
+  condition: PartCondition;
+  price_usd: number;
+  quantity: number;
+  port_china: string;
+  images: string[];
+  description: string | null;
+  is_verified: boolean;
+  is_featured: boolean;
+  status: VehicleStatus;
+  views: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Profile {
   id: string;
   auth_user_id: string;
@@ -109,6 +136,7 @@ export interface Message {
   sender_id: string;
   receiver_id: string;
   vehicle_id: string | null;
+  part_id: string | null;
   content: string;
   is_read: boolean;
   created_at: string;
@@ -123,4 +151,25 @@ export interface Review {
   comment: string | null;
   created_at: string;
   reviewer?: Pick<Profile, 'full_name' | 'avatar_url'>;
+}
+
+export interface SparePart {
+  id: string;
+  seller_id: string | null;
+  name: string;
+  category: string;
+  compatible_make: string | null;
+  compatible_model: string | null;
+  compatible_year_from: number | null;
+  compatible_year_to: number | null;
+  condition: string;
+  price_usd: number;
+  port_china: string;
+  images: string[];
+  description: string | null;
+  is_featured: boolean;
+  status: VehicleStatus;
+  views: number;
+  created_at: string;
+  updated_at: string;
 }
