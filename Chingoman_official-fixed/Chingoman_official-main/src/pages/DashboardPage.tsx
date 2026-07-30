@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Car, Heart, MessageSquare, Ship, TrendingUp, Plus, Eye } from 'lucide-react';
+import { Car, Heart, MessageSquare, Ship, TrendingUp, Plus, Eye, PackageX, RotateCcw } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from '@/context/RouterContext';
 import { supabase } from '@/lib/supabase';
 import type { Vehicle, Favorite } from '@/types';
 import { VehicleCard } from '@/components/VehicleCard';
 import { formatUSD } from '@/lib/cif';
+import { VEHICLE_STATUS_LABELS, VEHICLE_STATUS_COLORS } from '@/lib/constants';
 
 export function DashboardPage() {
   const { user, profile, loading } = useAuth();
@@ -13,10 +14,10 @@ export function DashboardPage() {
   const [myListings, setMyListings] = useState<Vehicle[]>([]);
   const [favorites, setFavorites] = useState<Vehicle[]>([]);
   const [stats, setStats] = useState({ listings: 0, favorites: 0, views: 0 });
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user || !profile) return;
-
+  function loadListings() {
+    if (!profile) return;
     supabase
       .from('vehicles')
       .select('*')
@@ -27,6 +28,20 @@ export function DashboardPage() {
         setMyListings(vehicles);
         setStats((s) => ({ ...s, listings: vehicles.length, views: vehicles.reduce((sum, v) => sum + (v.views || 0), 0) }));
       });
+  }
+
+  async function updateListingStatus(id: string, status: 'active' | 'sold' | 'out_of_stock') {
+    setUpdatingId(id);
+    const { error } = await supabase.from('vehicles').update({ status }).eq('id', id);
+    setUpdatingId(null);
+    if (error) { alert(`Could not update listing: ${error.message}`); return; }
+    setMyListings((prev) => prev.map((v) => (v.id === id ? { ...v, status } : v)));
+  }
+
+  useEffect(() => {
+    if (!user || !profile) return;
+
+    loadListings();
 
     supabase
       .from('favorites')
@@ -89,7 +104,45 @@ export function DashboardPage() {
         {myListings.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {myListings.map((v) => (
-              <VehicleCard key={v.id} vehicle={v} />
+              <div key={v.id}>
+                <VehicleCard vehicle={v} />
+                <div className="mt-2.5 flex items-center justify-between gap-2">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${VEHICLE_STATUS_COLORS[v.status]}`}>
+                    {VEHICLE_STATUS_LABELS[v.status]}
+                  </span>
+                  {(v.status === 'active' || v.status === 'sold' || v.status === 'out_of_stock') && (
+                    <div className="flex items-center gap-1.5">
+                      {v.status === 'active' ? (
+                        <>
+                          <button
+                            onClick={() => updateListingStatus(v.id, 'out_of_stock')}
+                            disabled={updatingId === v.id}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 hover:underline disabled:opacity-50"
+                          >
+                            <PackageX className="w-3.5 h-3.5" /> Out of Stock
+                          </button>
+                          <span className="text-slate-300">·</span>
+                          <button
+                            onClick={() => updateListingStatus(v.id, 'sold')}
+                            disabled={updatingId === v.id}
+                            className="text-xs font-medium text-slate-600 hover:underline disabled:opacity-50"
+                          >
+                            Mark Sold
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => updateListingStatus(v.id, 'active')}
+                          disabled={updatingId === v.id}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:underline disabled:opacity-50"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" /> Mark Available
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         ) : (
