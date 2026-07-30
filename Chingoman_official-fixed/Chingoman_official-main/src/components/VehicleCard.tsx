@@ -2,6 +2,7 @@ import { Gauge, Calendar, Fuel, ShipWheel, BadgeCheck, BatteryCharging, MapPin, 
 import type { Vehicle } from '@/types';
 import { VEHICLE_TYPE_COLORS, VEHICLE_TYPE_SHORT, SOH_RATING, VEHICLE_STATUS_LABELS } from '@/lib/constants';
 import { formatUSD } from '@/lib/cif';
+import { useUSDtoGHSRate, formatGHS } from '@/lib/exchangeRate';
 import { useRouter } from '@/context/RouterContext';
 
 interface VehicleCardProps {
@@ -10,6 +11,7 @@ interface VehicleCardProps {
 
 export function VehicleCard({ vehicle }: VehicleCardProps) {
   const { navigate } = useRouter();
+  const { rate: ghsRate } = useUSDtoGHSRate();
   const soh = vehicle.battery_soh !== null ? SOH_RATING(vehicle.battery_soh) : null;
   const typeColor = VEHICLE_TYPE_COLORS[vehicle.vehicle_type] ?? VEHICLE_TYPE_COLORS.ICE;
   const image = vehicle.images?.[0] ?? null;
@@ -94,6 +96,9 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
           <div>
             <p className="text-xs text-slate-500">Price (FOB)</p>
             <p className={`text-xl font-bold ${unavailable ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{formatUSD(Number(vehicle.price_usd))}</p>
+            {ghsRate && !unavailable && (
+              <p className="text-xs text-slate-400">≈ {formatGHS(Number(vehicle.price_usd), ghsRate)}</p>
+            )}
           </div>
           <span className="text-xs font-medium text-green-600 group-hover:underline">View Details →</span>
         </div>
