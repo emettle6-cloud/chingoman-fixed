@@ -1,16 +1,24 @@
 import { useEffect, useState } from 'react';
-import { MessageSquare, Send, ArrowLeft, Car } from 'lucide-react';
+import { MessageSquare, Send, ArrowLeft, Car, Wrench } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from '@/context/RouterContext';
 import { supabase } from '@/lib/supabase';
-import type { Message, Vehicle, Profile } from '@/types';
+import type { Message, Vehicle, SparePart, Profile } from '@/types';
 
 interface Conversation {
   key: string;
   otherProfile: Profile;
   vehicle: Vehicle | null;
+  part: SparePart | null;
   lastMessage: Message;
   unreadCount: number;
+}
+
+// Conversation key encodes who the other person is plus which listing (if any)
+// the conversation is about, so a buyer can have one thread about a vehicle
+// and a separate thread about a spare part with the same seller.
+function conversationKey(otherId: string, vehicleId: string | null, partId: string | null) {
+  return `${otherId}:${vehicleId ?? 'none'}:${partId ?? 'none'}`;
 }
 
 export function MessagesPage() {
@@ -27,10 +35,10 @@ export function MessagesPage() {
     if (profile) loadConversations();
   }, [profile]);
 
-  // If arriving from a vehicle page wanting to open a specific conversation.
+  // If arriving from a vehicle or part page wanting to open a specific conversation.
   useEffect(() => {
-    if (route.name === 'messages' && route.withProfileId && conversations.length >= 0) {
-      const key = `${route.withProfileId}:${route.vehicleId ?? 'none'}`;
+    if (route.name === 'messages' && route.withProfileId) {
+      const key = conversationKey(route.withProfileId, route.vehicleId ?? null, route.partId ?? null);
       setActiveKey(key);
     }
   }, [route]);
@@ -54,7 +62,7 @@ export function MessagesPage() {
     const grouped = new Map<string, Message[]>();
     for (const m of messages) {
       const otherId = m.sender_id === profile.id ? m.receiver_id : m.sender_id;
-      const key = `${otherId}:${m.vehicle_id ?? 'none'}`;
+      const key = conversationKey(otherId, m.vehicle_id, m.part_id);
       if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key)!.push(m);
     }
@@ -65,28 +73,36 @@ export function MessagesPage() {
     const vehicleIds = Array.from(new Set(
       messages.map((m) => m.vehicle_id).filter((v): v is string => !!v)
     ));
+    const partIds = Array.from(new Set(
+      messages.map((m) => m.part_id).filter((v): v is string => !!v)
+    ));
 
-    const [{ data: profilesData }, { data: vehiclesData }] = await Promise.all([
+    const [{ data: profilesData }, { data: vehiclesData }, { data: partsData }] = await Promise.all([
       otherProfileIds.length > 0
         ? supabase.from('profiles').select('*').in('id', otherProfileIds)
         : Promise.resolve({ data: [] as Profile[] }),
       vehicleIds.length > 0
         ? supabase.from('vehicles').select('*').in('id', vehicleIds)
         : Promise.resolve({ data: [] as Vehicle[] }),
+      partIds.length > 0
+        ? supabase.from('spare_parts').select('*').in('id', partIds)
+        : Promise.resolve({ data: [] as SparePart[] }),
     ]);
 
     const profilesById = new Map((profilesData ?? []).map((p: Profile) => [p.id, p]));
     const vehiclesById = new Map((vehiclesData ?? []).map((v: Vehicle) => [v.id, v]));
+    const partsById = new Map((partsData ?? []).map((p: SparePart) => [p.id, p]));
 
     const convos: Conversation[] = Array.from(grouped.entries())
       .map(([key, msgs]) => {
-        const [otherId, vehicleId] = key.split(':');
+        const [otherId, vehicleId, partId] = key.split(':');
         const otherProfile = profilesById.get(otherId);
         if (!otherProfile) return null;
         return {
           key,
           otherProfile,
           vehicle: vehicleId !== 'none' ? (vehiclesById.get(vehicleId) ?? null) : null,
+          part: partId !== 'none' ? (partsById.get(partId) ?? null) : null,
           lastMessage: msgs[0],
           unreadCount: msgs.filter((m) => m.receiver_id === profile.id && !m.is_read).length,
         };
@@ -104,7 +120,7 @@ export function MessagesPage() {
 
   async function loadThread(key: string) {
     if (!profile) return;
-    const [otherId, vehicleId] = key.split(':');
+    const [otherId, vehicleId, partId] = key.split(':');
 
     let query = supabase
       .from('messages')
@@ -112,9 +128,8 @@ export function MessagesPage() {
       .or(`and(sender_id.eq.${profile.id},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${profile.id})`)
       .order('created_at', { ascending: true });
 
-    if (vehicleId !== 'none') {
-      query = query.eq('vehicle_id', vehicleId);
-    }
+    query = vehicleId !== 'none' ? query.eq('vehicle_id', vehicleId) : query.is('vehicle_id', null);
+    query = partId !== 'none' ? query.eq('part_id', partId) : query.is('part_id', null);
 
     const { data } = await query;
     setThread((data as Message[]) ?? []);
@@ -131,13 +146,14 @@ export function MessagesPage() {
 
   async function sendReply() {
     if (!profile || !activeKey || !reply.trim()) return;
-    const [otherId, vehicleId] = activeKey.split(':');
+    const [otherId, vehicleId, partId] = activeKey.split(':');
 
     setSending(true);
     const { error } = await supabase.from('messages').insert({
       sender_id: profile.id,
       receiver_id: otherId,
       vehicle_id: vehicleId !== 'none' ? vehicleId : null,
+      part_id: partId !== 'none' ? partId : null,
       content: reply.trim(),
     });
     setSending(false);
@@ -190,6 +206,11 @@ export function MessagesPage() {
                       <Car className="w-3 h-3" /> {c.vehicle.year} {c.vehicle.make} {c.vehicle.model}
                     </p>
                   )}
+                  {c.part && (
+                    <p className="text-xs text-slate-400 truncate flex items-center gap-1 mb-0.5">
+                      <Wrench className="w-3 h-3" /> {c.part.name}
+                    </p>
+                  )}
                   <p className="text-xs text-slate-500 truncate">{c.lastMessage.content}</p>
                 </button>
               ))
@@ -209,9 +230,17 @@ export function MessagesPage() {
                     {activeConvo.vehicle && (
                       <button
                         onClick={() => navigate({ name: 'vehicle', id: activeConvo.vehicle!.id })}
-                        className="text-xs text-green-600 hover:underline"
+                        className="text-xs text-green-600 hover:underline flex items-center gap-1"
                       >
-                        {activeConvo.vehicle.year} {activeConvo.vehicle.make} {activeConvo.vehicle.model}
+                        <Car className="w-3 h-3" /> {activeConvo.vehicle.year} {activeConvo.vehicle.make} {activeConvo.vehicle.model}
+                      </button>
+                    )}
+                    {activeConvo.part && (
+                      <button
+                        onClick={() => navigate({ name: 'part', id: activeConvo.part!.id })}
+                        className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                      >
+                        <Wrench className="w-3 h-3" /> {activeConvo.part.name}
                       </button>
                     )}
                   </div>
