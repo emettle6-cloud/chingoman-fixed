@@ -7,6 +7,7 @@ import { useRouter } from '@/context/RouterContext';
 import { supabase } from '@/lib/supabase';
 import type { Vehicle } from '@/types';
 import { VehicleCard } from '@/components/VehicleCard';
+import { HeroIllustration } from '@/components/HeroIllustration';
 import { TRUST_FEATURES, MONETIZATION_FEATURES, VEHICLE_TYPE_LABELS, DESTINATION_PORTS } from '@/lib/constants';
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -51,14 +52,11 @@ export function HomePage() {
     <div>
       {/* Hero */}
       <section className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="https://images.pexels.com/photos/3729464/pexels-photo-3729464.jpeg?auto=compress&cs=tinysrgb&w=1600"
-            alt=""
-            className="w-full h-full object-cover opacity-25 animate-fade-in-slow"
-          />
+        <div className="absolute inset-0 text-green-400/90">
+          <HeroIllustration className="w-full h-full" />
         </div>
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/85 via-slate-900/80 to-slate-900/95" />
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/85 to-slate-900/40" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-slate-900/40" />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
           <div className="max-w-3xl">
