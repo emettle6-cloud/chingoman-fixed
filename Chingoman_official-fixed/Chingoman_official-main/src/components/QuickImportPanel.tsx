@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Wand2, Car, Wrench, ImagePlus, X, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Wand2, Car, Wrench, ImagePlus, X, CheckCircle2, AlertTriangle, ScanText, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { CHINESE_PORTS, YEAR_RANGE, PART_CATEGORIES, PART_CONDITIONS } from '@/lib/constants';
 import type { VehicleType } from '@/types';
@@ -13,33 +13,95 @@ interface ParsedFields {
 
 const IMAGE_URL_RE = /https?:\/\/[^\s"'<>]+?\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s"'<>]*)?/gi;
 
-// Best-effort extraction from an arbitrary pasted JSON blob — every source
-// site names its fields differently, so this looks for common patterns
-// rather than assuming one exact schema. The admin reviews and corrects
-// everything below before it's ever submitted.
-function extractFields(raw: string): { parsed: ParsedFields | null; error: string | null } {
-  let data: unknown;
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    // Not valid JSON — fall back to scanning the raw text for image URLs and a price,
-    // so a person pasting a chunk of HTML or a loose text blob still gets something.
-    const images = Array.from(new Set(raw.match(IMAGE_URL_RE) ?? [])).slice(0, 10);
-    const priceMatch = raw.match(/(?:price|cost)["\s:]*\$?\s*([\d,]+(?:\.\d+)?)/i);
-    if (images.length === 0 && !priceMatch) {
-      return { parsed: null, error: "That doesn't look like JSON and no price or image URLs were found in it. Paste the raw API response or product JSON." };
+function getMetaContent(html: string, patterns: RegExp[]): string | null {
+  for (const re of patterns) {
+    const match = html.match(re);
+    if (match?.[1]) return match[1].trim();
+  }
+  return null;
+}
+
+function getAllMetaContent(html: string, re: RegExp): string[] {
+  return Array.from(html.matchAll(re)).map((m) => m[1]).filter(Boolean);
+}
+
+function decodeEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
+}
+
+// Extraction for a full page's HTML source — the easy path, since getting this
+// only takes right-click → View Page Source → Select All → Copy on the listing,
+// no dev tools or knowledge of APIs required. Looks for the same Open Graph and
+// JSON-LD product tags nearly every e-commerce site already embeds for Google
+// Shopping / social link previews, then falls back to a generic scan.
+function extractFromHtml(html: string): ParsedFields {
+  let title = getMetaContent(html, [
+    /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']*)["']/i,
+    /<meta[^>]+content=["']([^"']*)["'][^>]+property=["']og:title["']/i,
+    /<title[^>]*>([^<]*)<\/title>/i,
+  ]) ?? '';
+
+  let description = getMetaContent(html, [
+    /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']*)["']/i,
+    /<meta[^>]+content=["']([^"']*)["'][^>]+property=["']og:description["']/i,
+    /<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i,
+  ]) ?? '';
+
+  const priceStr = getMetaContent(html, [
+    /<meta[^>]+property=["']product:price:amount["'][^>]+content=["']([^"']*)["']/i,
+    /<meta[^>]+property=["']og:price:amount["'][^>]+content=["']([^"']*)["']/i,
+    /"price"\s*:\s*"?([\d.]+)"?/i,
+    /(?:price|cost)["\s:]*\$?\s*([\d,]+(?:\.\d+)?)/i,
+  ]);
+  let price = priceStr ? Number(priceStr.replace(/,/g, '')) : null;
+  if (price !== null && (Number.isNaN(price) || price <= 0)) price = null;
+
+  const images = new Set<string>();
+  getAllMetaContent(html, /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']*)["']/gi).forEach((u) => images.add(u));
+
+  // JSON-LD product schema, if present, often has cleaner data than the meta tags.
+  const ldBlocks = Array.from(html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi));
+  for (const block of ldBlocks) {
+    try {
+      const data = JSON.parse(block[1]);
+      const items = Array.isArray(data) ? data : [data];
+      for (const item of items) {
+        if (!item || typeof item !== 'object') continue;
+        if (!title && typeof item.name === 'string') title = item.name;
+        if (!description && typeof item.description === 'string') description = item.description;
+        const offer = Array.isArray(item.offers) ? item.offers[0] : item.offers;
+        if (price === null && offer?.price) {
+          const num = Number(offer.price);
+          if (!Number.isNaN(num) && num > 0) price = num;
+        }
+        const imgField = item.image;
+        if (typeof imgField === 'string') images.add(imgField);
+        if (Array.isArray(imgField)) imgField.forEach((u: unknown) => typeof u === 'string' && images.add(u));
+      }
+    } catch {
+      // Not valid JSON in this block — skip it, other sources may still work.
     }
-    return {
-      parsed: {
-        title: '',
-        price: priceMatch ? Number(priceMatch[1].replace(/,/g, '')) : null,
-        images,
-        description: '',
-      },
-      error: null,
-    };
   }
 
+  // Generic fallback: any image-looking URL in the page, in case none of the above matched.
+  if (images.size === 0) {
+    (html.match(IMAGE_URL_RE) ?? []).slice(0, 20).forEach((u) => images.add(u));
+  }
+
+  return {
+    title: decodeEntities(title).trim(),
+    price,
+    images: Array.from(images).slice(0, 10),
+    description: decodeEntities(description).trim(),
+  };
+}
+
+// Best-effort extraction from a pasted JSON blob (e.g. copied from a Network
+// tab response) — every source names its fields differently, so this looks
+// for common patterns rather than assuming one exact schema.
+function extractFromJson(data: unknown): ParsedFields {
   let title = '';
   let price: number | null = null;
   let description = '';
@@ -87,15 +149,30 @@ function extractFields(raw: string): { parsed: ParsedFields | null; error: strin
   }
 
   visit(data, 0);
+  return { title, price, images: Array.from(images).slice(0, 10), description };
+}
 
-  if (!title && price === null && images.size === 0) {
-    return { parsed: null, error: "Couldn't find a title, price, or images in that JSON. You can still fill everything in manually below." };
+// Entry point: tries JSON first (for anyone who does have a raw API response),
+// otherwise treats the paste as page HTML — the easier, recommended path.
+// The admin reviews and corrects everything below before it's ever submitted.
+function extractFields(raw: string): { parsed: ParsedFields | null; error: string | null } {
+  let result: ParsedFields;
+
+  try {
+    const data = JSON.parse(raw);
+    result = extractFromJson(data);
+  } catch {
+    result = extractFromHtml(raw);
   }
 
-  return {
-    parsed: { title, price, images: Array.from(images).slice(0, 10), description },
-    error: null,
-  };
+  if (!result.title && result.price === null && result.images.length === 0) {
+    return {
+      parsed: null,
+      error: "Couldn't find a title, price, or images in that. Make sure you copied the full page source (Ctrl+U or right-click → View Page Source, then Select All → Copy) — you can still fill everything in manually below.",
+    };
+  }
+
+  return { parsed: result, error: null };
 }
 
 // Cheap heuristic to pre-fill year/make/model from a title like
@@ -108,6 +185,22 @@ function guessVehicleFields(title: string) {
   const make = words[0] ?? '';
   const model = words.slice(1).join(' ');
   return { year, make, model };
+}
+
+// OCR text has no field labels to key off, so this just looks for a
+// dollar-sign or "price"-adjacent number, and takes the first substantial
+// line as a title guess — much rougher than the page-source path, hence
+// the raw text stays visible for the admin to read and copy from directly.
+function guessFieldsFromOcrText(text: string): { title: string; price: number | null } {
+  const priceMatch = text.match(/\$\s?([\d,]+(?:\.\d{1,2})?)/) ?? text.match(/(?:price|cost)[^\d]{0,10}([\d,]+(?:\.\d{1,2})?)/i);
+  const price = priceMatch ? Number(priceMatch[1].replace(/,/g, '')) : null;
+
+  const titleLine = text
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l.length > 8 && l.length < 100 && !/^\$?\d[\d,.\s]*$/.test(l));
+
+  return { title: titleLine ?? '', price: price && price > 0 ? price : null };
 }
 
 export function QuickImportPanel() {
@@ -139,6 +232,47 @@ export function QuickImportPanel() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [showAutofill, setShowAutofill] = useState(false);
+
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [ocrText, setOcrText] = useState('');
+
+  async function handleScreenshotUpload(file: File) {
+    setOcrError(null);
+    setOcrText('');
+    setOcrLoading(true);
+    try {
+      // Loaded on demand so this ~2MB OCR engine never ships to visitors
+      // who aren't using this admin tool.
+      const Tesseract = await import('tesseract.js');
+      const { data } = await Tesseract.recognize(file, 'eng');
+      const text = data.text.trim();
+      setOcrText(text);
+
+      if (!text) {
+        setOcrError("Couldn't read any text from that image — try a clearer or higher-resolution screenshot.");
+        return;
+      }
+
+      const guess = guessFieldsFromOcrText(text);
+      if (guess.price !== null) {
+        setSourcePrice(String(guess.price));
+        applyMarkup(guess.price, markupType, markupValue);
+      }
+      if (guess.title) {
+        const vehicleGuess = guessVehicleFields(guess.title);
+        if (vehicleGuess.year) setYear(String(vehicleGuess.year));
+        setMake(vehicleGuess.make);
+        setModel(vehicleGuess.model);
+        setPartName(guess.title);
+      }
+    } catch (err) {
+      setOcrError(`Could not read that image: ${err instanceof Error ? err.message : 'unknown error'}`);
+    } finally {
+      setOcrLoading(false);
+    }
+  }
 
   function handleParse() {
     setSubmitError(null);
@@ -270,41 +404,95 @@ export function QuickImportPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
-        Paste the raw JSON you copied from the source listing (its API response, or a product-data block from the page).
-        This tool never fetches anything itself — you bring the data, it just extracts fields, applies your markup, and
-        builds the listing. Everything is editable before you submit, and it goes to Pending Review like any other listing.
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 space-y-1.5">
+        <p className="font-semibold">How this works — no API or tech knowledge needed:</p>
+        <p>1. Open the listing on the source site, in another tab.</p>
+        <p>2. Type the title, price, and description into the fields below (whatever you see on the page).</p>
+        <p>3. For each photo: right-click it on the source page → <span className="font-medium">"Copy image address"</span> (or "Copy image link") → paste it into the Images box below.</p>
+        <p>4. Set your markup, check the final price, and submit. It goes to Pending Review — nothing goes live until you approve it.</p>
       </div>
 
-      {/* Step 1: paste + parse */}
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">Paste listing data</label>
-        <textarea
-          value={rawInput}
-          onChange={(e) => setRawInput(e.target.value)}
-          rows={6}
-          placeholder='{"title": "2022 BYD Han EV", "price": 24500, "images": ["https://..."], "description": "..."}'
-          className="w-full px-4 py-3 rounded-lg border border-slate-300 text-sm font-mono outline-none focus:border-green-400 resize-none"
-        />
-        <div className="flex items-center gap-3 mt-2">
-          <button
-            onClick={handleParse}
-            disabled={!rawInput.trim()}
-            className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-          >
-            <Wand2 className="w-4 h-4" /> Extract Fields
-          </button>
-          {parseError && (
-            <span className="text-xs text-amber-700 flex items-center gap-1">
-              <AlertTriangle className="w-3.5 h-3.5" /> {parseError}
-            </span>
-          )}
-          {parsed && !parseError && (
-            <span className="text-xs text-emerald-700 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Extracted — review and complete the fields below
-            </span>
-          )}
-        </div>
+      {/* Optional shortcut for anyone comfortable copying page source, to save typing */}
+      <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setShowAutofill((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          <span className="flex items-center gap-2"><Wand2 className="w-4 h-4 text-slate-400" /> Optional: auto-fill the fields for you</span>
+          <span className="text-xs text-slate-400">{showAutofill ? 'Hide' : 'Show'}</span>
+        </button>
+        {showAutofill && (
+          <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-2">
+            <p className="text-xs text-slate-500">
+              On the source listing: right-click the page → <span className="font-medium">"View Page Source"</span> (or Ctrl+U /
+              Cmd+Option+U) → Ctrl+A (Cmd+A) to select all → Ctrl+C (Cmd+C) to copy. Paste it below. This tool never fetches
+              anything on its own — you bring the page, it just reads what you pasted.
+            </p>
+            <textarea
+              value={rawInput}
+              onChange={(e) => setRawInput(e.target.value)}
+              rows={5}
+              placeholder="Paste the full page source here..."
+              className="w-full px-4 py-3 rounded-lg border border-slate-300 text-sm font-mono outline-none focus:border-green-400 resize-none"
+            />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleParse}
+                disabled={!rawInput.trim()}
+                className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+              >
+                <Wand2 className="w-4 h-4" /> Fill Fields Below
+              </button>
+              {parseError && (
+                <span className="text-xs text-amber-700 flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" /> {parseError}
+                </span>
+              )}
+              {parsed && !parseError && (
+                <span className="text-xs text-emerald-700 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Filled in below — review and correct anything before submitting
+                </span>
+              )}
+            </div>
+
+            {/* Screenshot OCR */}
+            <div className="pt-3 mt-1 border-t border-slate-100">
+              <p className="text-xs text-slate-500 mb-2">
+                Or upload a screenshot of the listing — this reads text out of the image in your browser (nothing is
+                uploaded anywhere). It's rougher than page source since it can't tell which text is the price vs.
+                anything else, so double-check what it finds.
+              </p>
+              <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors">
+                {ocrLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ScanText className="w-4 h-4" />}
+                {ocrLoading ? 'Reading image...' : 'Upload Screenshot'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={ocrLoading}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleScreenshotUpload(f); }}
+                />
+              </label>
+              {ocrError && (
+                <p className="text-xs text-amber-700 flex items-center gap-1 mt-2">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {ocrError}
+                </p>
+              )}
+              {ocrText && (
+                <div className="mt-2.5">
+                  <p className="text-xs font-medium text-slate-600 mb-1">Text found in the image (copy anything you need into the fields below):</p>
+                  <textarea
+                    readOnly
+                    value={ocrText}
+                    rows={4}
+                    onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-mono text-slate-600 resize-none"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Step 2: listing type */}
@@ -381,6 +569,9 @@ export function QuickImportPanel() {
         {/* Images */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">Images ({images.length})</label>
+          <p className="text-xs text-slate-400 mb-2">
+            On the source page: right-click a photo → "Copy image address" → paste it below → Add.
+          </p>
           {images.length > 0 && (
             <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 mb-2">
               {images.map((url, i) => (
