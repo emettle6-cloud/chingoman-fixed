@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
-import { CheckCircle2, XCircle, FileText, ShieldCheck, Star, Trash2, PackageX, RotateCcw, Car, Wrench } from 'lucide-react';
+import { CheckCircle2, XCircle, FileText, ShieldCheck, Star, Trash2, PackageX, RotateCcw, Car, Wrench, Wand2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import type { Vehicle, SparePart } from '@/types';
 import { VEHICLE_STATUS_LABELS, VEHICLE_STATUS_COLORS } from '@/lib/constants';
+import { QuickImportPanel } from '@/components/QuickImportPanel';
 
-type Tab = 'vehicles' | 'parts';
+type Tab = 'vehicles' | 'parts' | 'import';
 
 export function AdminDashboardPage() {
   const { profile, loading: authLoading } = useAuth();
@@ -168,9 +169,19 @@ export function AdminDashboardPage() {
         >
           <Wrench className="w-4 h-4" /> Spare Parts {pendingParts.length > 0 && `(${pendingParts.length})`}
         </button>
+        <button
+          onClick={() => setTab('import')}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+            tab === 'import' ? 'border-green-600 text-green-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Wand2 className="w-4 h-4" /> Quick Import
+        </button>
       </div>
 
-      {loading ? (
+      {tab === 'import' ? (
+        <QuickImportPanel />
+      ) : loading ? (
         <p className="text-slate-400">Loading...</p>
       ) : tab === 'vehicles' ? (
         <>
