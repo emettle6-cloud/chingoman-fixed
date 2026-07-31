@@ -7,7 +7,6 @@ import { useRouter } from '@/context/RouterContext';
 import { supabase } from '@/lib/supabase';
 import type { Vehicle } from '@/types';
 import { VehicleCard } from '@/components/VehicleCard';
-import { HeroIllustration } from '@/components/HeroIllustration';
 import { TRUST_FEATURES, MONETIZATION_FEATURES, VEHICLE_TYPE_LABELS, DESTINATION_PORTS } from '@/lib/constants';
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -51,12 +50,27 @@ export function HomePage() {
   return (
     <div>
       {/* Hero */}
-      <section className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
-        <div className="absolute inset-0 text-green-400/90">
-          <HeroIllustration className="w-full h-full" />
+      <section className="relative bg-slate-900 overflow-hidden">
+        <div className="absolute inset-0">
+          <img
+            src="/assets/hero-car.jpg"
+            alt=""
+            className="w-full h-full object-cover object-[68%_center]"
+          />
         </div>
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/85 to-slate-900/40" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-slate-900/40" />
+
+        {/* Bokeh blur behind the headline, fading smoothly into the sharp photo on the right */}
+        <div
+          className="absolute inset-y-0 left-0 w-[62%] backdrop-blur-2xl"
+          style={{
+            WebkitMaskImage: 'linear-gradient(to right, black 0%, black 45%, transparent 100%)',
+            maskImage: 'linear-gradient(to right, black 0%, black 45%, transparent 100%)',
+          }}
+        />
+
+        {/* Contrast + slight dimming behind the text */}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-900/88 via-slate-900/55 to-slate-900/10" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-slate-900/25" />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
           <div className="max-w-3xl">
