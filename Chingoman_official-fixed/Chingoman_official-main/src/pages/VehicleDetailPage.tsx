@@ -229,7 +229,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
           <div>
             <div className="aspect-[16/10] rounded-2xl overflow-hidden bg-slate-100 relative">
               {images.length > 0 ? (
-                <img src={images[activeImage]} alt={`${vehicle.make} ${vehicle.model}`} className="w-full h-full object-cover" />
+                <img src={images[activeImage]} alt={`${vehicle.make} ${vehicle.model}`} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
                   <Car className="w-10 h-10 mb-2" />
@@ -260,7 +260,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                       activeImage === i ? 'border-green-500' : 'border-slate-200'
                     }`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <img src={img} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
