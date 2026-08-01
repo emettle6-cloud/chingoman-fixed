@@ -1,16 +1,19 @@
 import { useEffect, useState, useCallback } from 'react';
-import { CheckCircle2, XCircle, FileText, ShieldCheck, Star, Trash2, PackageX, RotateCcw, Car, Wrench, Wand2 } from 'lucide-react';
+import { CheckCircle2, XCircle, FileText, ShieldCheck, Star, Trash2, PackageX, RotateCcw, Car, Wrench, Wand2, Pencil } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import type { Vehicle, SparePart } from '@/types';
 import { VEHICLE_STATUS_LABELS, VEHICLE_STATUS_COLORS } from '@/lib/constants';
 import { QuickImportPanel } from '@/components/QuickImportPanel';
+import { EditVehicleModal, EditPartModal } from '@/components/AdminEditModal';
 
 type Tab = 'vehicles' | 'parts' | 'import';
 
 export function AdminDashboardPage() {
   const { profile, loading: authLoading } = useAuth();
   const [tab, setTab] = useState<Tab>('vehicles');
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [editingPart, setEditingPart] = useState<SparePart | null>(null);
 
   const [pending, setPending] = useState<Vehicle[]>([]);
   const [active, setActive] = useState<Vehicle[]>([]);
@@ -207,6 +210,9 @@ export function AdminDashboardPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => setEditingVehicle(v)} disabled={actioningId === v.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-50">
+                      <Pencil className="w-4 h-4" /> Edit
+                    </button>
                     <button onClick={() => reject(v.id)} disabled={actioningId === v.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-50">
                       <XCircle className="w-4 h-4" /> Reject
                     </button>
@@ -234,6 +240,9 @@ export function AdminDashboardPage() {
                     <p className="text-sm text-slate-500">${v.price_usd?.toLocaleString()} · {v.port_china}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => setEditingVehicle(v)} disabled={actioningId === v.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-50">
+                      <Pencil className="w-4 h-4" /> Edit
+                    </button>
                     <button onClick={() => setStatus(v.id, 'out_of_stock')} disabled={actioningId === v.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-amber-700 border border-amber-200 hover:bg-amber-50 disabled:opacity-50">
                       <PackageX className="w-4 h-4" /> Out of Stock
                     </button>
@@ -279,6 +288,9 @@ export function AdminDashboardPage() {
                     <p className="text-sm text-slate-500">${v.price_usd?.toLocaleString()} · {v.port_china}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => setEditingVehicle(v)} disabled={actioningId === v.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-50">
+                      <Pencil className="w-4 h-4" /> Edit
+                    </button>
                     <button onClick={() => setStatus(v.id, 'active')} disabled={actioningId === v.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-green-700 border border-green-200 hover:bg-green-50 disabled:opacity-50">
                       <RotateCcw className="w-4 h-4" /> Mark Available
                     </button>
@@ -308,6 +320,9 @@ export function AdminDashboardPage() {
                     <p className="text-sm text-slate-500">${p.price_usd?.toLocaleString()} · {p.category} · {p.port_china}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => setEditingPart(p)} disabled={actioningId === p.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-50">
+                      <Pencil className="w-4 h-4" /> Edit
+                    </button>
                     <button onClick={() => rejectPart(p.id)} disabled={actioningId === p.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-50">
                       <XCircle className="w-4 h-4" /> Reject
                     </button>
@@ -335,6 +350,9 @@ export function AdminDashboardPage() {
                     <p className="text-sm text-slate-500">${p.price_usd?.toLocaleString()} · {p.category} · {p.port_china}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => setEditingPart(p)} disabled={actioningId === p.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-50">
+                      <Pencil className="w-4 h-4" /> Edit
+                    </button>
                     <button onClick={() => setPartStatus(p.id, 'out_of_stock')} disabled={actioningId === p.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-amber-700 border border-amber-200 hover:bg-amber-50 disabled:opacity-50">
                       <PackageX className="w-4 h-4" /> Out of Stock
                     </button>
@@ -380,6 +398,9 @@ export function AdminDashboardPage() {
                     <p className="text-sm text-slate-500">${p.price_usd?.toLocaleString()} · {p.category} · {p.port_china}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => setEditingPart(p)} disabled={actioningId === p.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-50">
+                      <Pencil className="w-4 h-4" /> Edit
+                    </button>
                     <button onClick={() => setPartStatus(p.id, 'active')} disabled={actioningId === p.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-green-700 border border-green-200 hover:bg-green-50 disabled:opacity-50">
                       <RotateCcw className="w-4 h-4" /> Mark Available
                     </button>
@@ -392,6 +413,21 @@ export function AdminDashboardPage() {
             </div>
           )}
         </>
+      )}
+
+      {editingVehicle && (
+        <EditVehicleModal
+          vehicle={editingVehicle}
+          onClose={() => setEditingVehicle(null)}
+          onSaved={() => { setEditingVehicle(null); loadAll(); }}
+        />
+      )}
+      {editingPart && (
+        <EditPartModal
+          part={editingPart}
+          onClose={() => setEditingPart(null)}
+          onSaved={() => { setEditingPart(null); loadAll(); }}
+        />
       )}
     </div>
   );
