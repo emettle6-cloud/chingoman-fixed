@@ -27,6 +27,7 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
           <img
             src={image}
             alt={`${vehicle.make} ${vehicle.model}`}
+            referrerPolicy="no-referrer"
             className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${unavailable ? 'grayscale opacity-70' : ''}`}
           />
         ) : (
