@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Car, Heart, MessageSquare, Ship, TrendingUp, Plus, Eye, PackageX, RotateCcw, Wrench } from 'lucide-react';
+import { Car, Heart, MessageSquare, Ship, TrendingUp, Plus, Eye, PackageX, RotateCcw, Wrench, Phone, MessageCircle, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from '@/context/RouterContext';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +8,110 @@ import { VehicleCard } from '@/components/VehicleCard';
 import { SparePartCard } from '@/components/SparePartCard';
 import { formatUSD } from '@/lib/cif';
 import { VEHICLE_STATUS_LABELS, VEHICLE_STATUS_COLORS } from '@/lib/constants';
+
+function ContactInfoCard() {
+  const { profile, refreshProfile } = useAuth();
+  const [phone, setPhone] = useState(profile?.phone ?? '');
+  const [whatsapp, setWhatsapp] = useState(profile?.whatsapp ?? '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPhone(profile?.phone ?? '');
+    setWhatsapp(profile?.whatsapp ?? '');
+  }, [profile?.phone, profile?.whatsapp]);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!profile) return;
+    setError(null);
+    setSaved(false);
+
+    if (!phone && !whatsapp) {
+      setError('Add at least one contact method so buyers can reach you.');
+      return;
+    }
+
+    setSaving(true);
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ phone, whatsapp })
+      .eq('id', profile.id);
+    setSaving(false);
+
+    if (updateError) {
+      setError(`Could not save contact info: ${updateError.message}`);
+      return;
+    }
+
+    await refreshProfile();
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  }
+
+  const missingContact = profile && !profile.phone && !profile.whatsapp;
+
+  return (
+    <div className="mb-10 bg-white rounded-2xl border border-slate-200 p-6">
+      <h2 className="text-xl font-bold text-slate-900 mb-1">Contact Info</h2>
+      <p className="text-sm text-slate-500 mb-4">
+        This phone number and WhatsApp number are shown to buyers on all of your active listings.
+      </p>
+
+      {missingContact && (
+        <div className="mb-4 flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3">
+          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <span>You haven't set a phone or WhatsApp number yet, so buyers currently see no way to call or message you directly on your listings. Add one below.</span>
+        </div>
+      )}
+
+      <form onSubmit={handleSave} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-1.5">
+            <Phone className="w-3.5 h-3.5" /> Phone Number
+          </label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+233 20 000 0000"
+            className="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none transition-all text-sm bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-1.5">
+            <MessageCircle className="w-3.5 h-3.5" /> WhatsApp Number
+          </label>
+          <input
+            type="tel"
+            value={whatsapp}
+            onChange={(e) => setWhatsapp(e.target.value)}
+            placeholder="+233 20 000 0000"
+            className="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none transition-all text-sm bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+          />
+        </div>
+
+        {error && <p className="sm:col-span-2 text-sm text-red-600">{error}</p>}
+
+        <div className="sm:col-span-2 flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={saving}
+            className="bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Contact Info'}
+          </button>
+          {saved && (
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700">
+              <CheckCircle2 className="w-4 h-4" /> Saved
+            </span>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+}
 
 export function DashboardPage() {
   const { user, profile, loading } = useAuth();
@@ -122,6 +226,8 @@ export function DashboardPage() {
         <StatCard icon={Eye} label="Total Views" value={String(stats.views)} color="text-blue-600 bg-blue-50" />
         <StatCard icon={TrendingUp} label="Account Type" value={profile?.user_type === 'marketer' ? 'Marketer' : 'Buyer'} color="text-emerald-600 bg-emerald-50" />
       </div>
+
+      <ContactInfoCard />
 
       {/* My listings */}
       <div className="mb-10">
