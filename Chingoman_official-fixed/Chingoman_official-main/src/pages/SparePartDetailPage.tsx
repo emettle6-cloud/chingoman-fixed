@@ -124,7 +124,7 @@ export function SparePartDetailPage({ partId }: SparePartDetailPageProps) {
           <div>
             <div className="aspect-[16/10] rounded-2xl overflow-hidden bg-slate-100 relative">
               {images.length > 0 ? (
-                <img src={images[activeImage]} alt={part.name} className="w-full h-full object-cover" />
+                <img src={images[activeImage]} alt={part.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
                   <Package className="w-10 h-10 mb-2" />
@@ -147,7 +147,7 @@ export function SparePartDetailPage({ partId }: SparePartDetailPageProps) {
                       activeImage === i ? 'border-green-500' : 'border-slate-200'
                     }`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <img src={img} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
