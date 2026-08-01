@@ -24,6 +24,7 @@ export function SparePartCard({ part }: SparePartCardProps) {
           <img
             src={image}
             alt={part.name}
+            referrerPolicy="no-referrer"
             className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${unavailable ? 'grayscale opacity-70' : ''}`}
           />
         ) : (
