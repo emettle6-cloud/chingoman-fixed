@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Wand2, Car, Wrench, ImagePlus, X, CheckCircle2, AlertTriangle, ScanText, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { importImageToStorage, type ImportImageBucket } from '@/lib/importImage';
 import { CHINESE_PORTS, YEAR_RANGE, PART_CATEGORIES, PART_CONDITIONS } from '@/lib/constants';
 import type { VehicleType } from '@/types';
 
@@ -9,6 +10,14 @@ interface ParsedFields {
   price: number | null;
   images: string[];
   description: string;
+}
+
+interface ImageEntry {
+  id: string;
+  sourceUrl: string;
+  hostedUrl: string | null;
+  status: 'importing' | 'done' | 'failed';
+  error?: string;
 }
 
 const IMAGE_URL_RE = /https?:\/\/[^\s"'<>]+?\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s"'<>]*)?/gi;
@@ -226,7 +235,7 @@ export function QuickImportPanel() {
   const [partCondition, setPartCondition] = useState<string>(PART_CONDITIONS[1]);
 
   const [description, setDescription] = useState('');
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<ImageEntry[]>([]);
   const [newImageUrl, setNewImageUrl] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
@@ -282,7 +291,8 @@ export function QuickImportPanel() {
 
     setParsed(result);
     setDescription(result.description);
-    setImages(result.images);
+    setImages([]);
+    result.images.forEach((url) => startImageImport(url));
     if (result.price !== null) {
       setSourcePrice(String(result.price));
       applyMarkup(result.price, markupType, markupValue);
@@ -313,15 +323,39 @@ export function QuickImportPanel() {
     if (value) applyMarkup(Number(value), markupType, markupValue);
   }
 
+  function bucketForKind(): ImportImageBucket {
+    return kind === 'vehicle' ? 'vehicle-images' : 'spare-part-images';
+  }
+
+  // Downloads the image server-side and re-hosts it in our own storage, so
+  // the listing doesn't keep depending on a third-party URL that can be
+  // hotlink-blocked, moved, or taken down. Falls back to the original URL
+  // (shown with a warning) if the import fails.
+  function startImageImport(sourceUrl: string) {
+    const id = crypto.randomUUID();
+    setImages((prev) => [...prev, { id, sourceUrl, hostedUrl: null, status: 'importing' }]);
+    importImageToStorage(sourceUrl, bucketForKind())
+      .then((hostedUrl) => {
+        setImages((prev) => prev.map((img) => (img.id === id ? { ...img, hostedUrl, status: 'done' } : img)));
+      })
+      .catch((err: unknown) => {
+        setImages((prev) => prev.map((img) => (
+          img.id === id
+            ? { ...img, status: 'failed', error: err instanceof Error ? err.message : 'Import failed' }
+            : img
+        )));
+      });
+  }
+
   function addImageUrl() {
     if (newImageUrl.trim()) {
-      setImages((prev) => [...prev, newImageUrl.trim()]);
+      startImageImport(newImageUrl.trim());
       setNewImageUrl('');
     }
   }
 
-  function removeImage(i: number) {
-    setImages((prev) => prev.filter((_, idx) => idx !== i));
+  function removeImage(id: string) {
+    setImages((prev) => prev.filter((img) => img.id !== id));
   }
 
   function resetAll() {
@@ -341,6 +375,12 @@ export function QuickImportPanel() {
       setSubmitError('Add at least one image URL.');
       return;
     }
+    if (images.some((img) => img.status === 'importing')) {
+      setSubmitError('Still importing images — wait a moment for that to finish, then submit.');
+      return;
+    }
+
+    const finalImages = images.map((img) => img.hostedUrl ?? img.sourceUrl);
 
     setSubmitting(true);
 
@@ -357,7 +397,7 @@ export function QuickImportPanel() {
         steering_side: steeringSide,
         price_usd: Number(finalPrice),
         port_china: portChina,
-        images,
+        images: finalImages,
         description: description || null,
         status: 'pending',
       });
@@ -376,7 +416,7 @@ export function QuickImportPanel() {
         condition: partCondition,
         price_usd: Number(finalPrice),
         port_china: portChina,
-        images,
+        images: finalImages,
         description: description || null,
         status: 'pending',
       });
@@ -570,14 +610,30 @@ export function QuickImportPanel() {
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">Images ({images.length})</label>
           <p className="text-xs text-slate-400 mb-2">
-            On the source page: right-click a photo → "Copy image address" → paste it below → Add.
+            On the source page: right-click a photo → "Copy image address" → paste it below → Add. Each one is downloaded and re-hosted on our own storage automatically, so it won't break if the source site blocks embedding.
           </p>
           {images.length > 0 && (
             <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 mb-2">
-              {images.map((url, i) => (
-                <div key={url + i} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-50 group">
-                  <img src={url} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} />
-                  <button onClick={() => removeImage(i)} className="absolute top-1 right-1 bg-slate-900/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {images.map((img) => (
+                <div key={img.id} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-50 group">
+                  <img
+                    src={img.hostedUrl ?? img.sourceUrl}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className={`w-full h-full object-cover ${img.status === 'importing' ? 'opacity-40' : ''}`}
+                    onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.15'; }}
+                  />
+                  {img.status === 'importing' && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-900/20">
+                      <Loader2 className="w-5 h-5 text-white animate-spin" />
+                    </div>
+                  )}
+                  {img.status === 'failed' && (
+                    <div className="absolute inset-x-0 bottom-0 bg-red-600/90 text-white text-[10px] leading-tight px-1 py-0.5 flex items-center gap-1" title={img.error}>
+                      <AlertTriangle className="w-3 h-3 shrink-0" /> Import failed, using original link
+                    </div>
+                  )}
+                  <button onClick={() => removeImage(img.id)} className="absolute top-1 right-1 bg-slate-900/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <X className="w-3 h-3" />
                   </button>
                 </div>
@@ -621,10 +677,10 @@ export function QuickImportPanel() {
 
         <button
           onClick={handleSubmit}
-          disabled={submitting}
+          disabled={submitting || images.some((img) => img.status === 'importing')}
           className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors"
         >
-          {submitting ? 'Creating...' : 'Create Pending Listing'}
+          {submitting ? 'Creating...' : images.some((img) => img.status === 'importing') ? 'Importing images...' : 'Create Pending Listing'}
         </button>
       </div>
 
