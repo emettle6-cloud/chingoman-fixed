@@ -43,7 +43,7 @@ export function ImportGuidePage() {
   const faqs = [
     {
       q: 'Why are most Chinese cars LHD?',
-      a: 'China drives on the right, so vehicles manufactured for the Chinese domestic market are Left-Hand Drive (LHD). Ghana and most of West Africa use Right-Hand Drive (RHD). You can either accept LHD for private use or convert it — conversion costs $2,000-5,000 and takes 2-4 weeks in Ghana.',
+      a: 'China drives on the right, so vehicles manufactured for the Chinese domestic market are Left-Hand Drive (LHD) — and so is Ghana! Ghana drives on the right and uses LHD vehicles, so cars imported from China are a perfect match with no conversion needed.',
     },
     {
       q: 'What is CIF and why does it matter?',
