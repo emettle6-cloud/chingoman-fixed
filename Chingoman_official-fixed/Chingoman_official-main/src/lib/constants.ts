@@ -79,7 +79,7 @@ export const SOH_RATING = (soh: number | null): { label: string; color: string; 
   return { label: 'Poor', color: 'text-red-600', description: 'Battery replacement recommended. Factor $3,000-8,000 into your budget.' };
 };
 
-export const RHD_WARNING = 'Ghana drives on the right (RHD). Most Chinese vehicles are LHD. Converting to RHD costs $2,000-5,000 and takes 2-4 weeks. Some buyers accept LHD for private use, but it is illegal for commercial/taxi use in Ghana.';
+export const RHD_WARNING = 'Ghana drives on the right and uses Left-Hand Drive (LHD) vehicles, so cars imported from China are a natural fit — no conversion needed.';
 
 export const MONETIZATION_FEATURES = [
   {
