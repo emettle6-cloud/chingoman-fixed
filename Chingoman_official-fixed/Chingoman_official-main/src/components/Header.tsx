@@ -49,7 +49,7 @@ export function Header() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <button onClick={() => navigate({ name: 'home' })} className="flex items-center gap-2.5 shrink-0">
-              <img src="/assets/chingoman_officail_logo_transparent.png" alt="Chin-go-man" className="h-10 w-auto" />
+              <img src="/assets/chingoman_officail_logo_transparent.png" alt="Chin-go-man" className="h-14 w-auto" />
               <span className="font-bold text-lg text-slate-900 hidden sm:block">Chin-go-man</span>
             </button>
 
