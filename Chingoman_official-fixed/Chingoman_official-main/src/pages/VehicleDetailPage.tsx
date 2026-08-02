@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ArrowLeft, BadgeCheck, Calendar, Gauge, Fuel, ShipWheel, BatteryCharging,
   MapPin, Ship, ShieldCheck, Lock, FileText, MessageSquare, Heart, Share2,
-  Calculator, Zap, Cog, Palette, CheckCircle2, AlertTriangle, Car, Plug, Send,
+  Calculator, Zap, Cog, Palette, CheckCircle2, Car, Plug, Send,
   Star, PackageX, Phone, MessageCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -12,7 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import { formatUSD, calculateCIF } from '@/lib/cif';
 import {
   VEHICLE_TYPE_LABELS, VEHICLE_TYPE_COLORS, SOH_RATING, CHARGING_ADVICE,
-  RHD_WARNING, VEHICLE_STATUS_LABELS,
+  VEHICLE_STATUS_LABELS,
 } from '@/lib/constants';
 import { AuthModal } from '@/components/AuthModal';
 
@@ -352,17 +352,6 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                   <p className="text-sm text-slate-600 leading-relaxed">{chargingAdvice}</p>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* LHD/RHD warning */}
-          {vehicle.steering_side === 'LHD' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold text-amber-900 text-sm mb-1">Left-Hand Drive Notice</p>
-                <p className="text-sm text-amber-700 leading-relaxed">{RHD_WARNING}</p>
-              </div>
             </div>
           )}
 
