@@ -18,7 +18,7 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="md:col-span-2">
             <div className="flex items-center gap-2.5 mb-4">
-              <img src="/assets/chingoman_officail_logo_transparent.png" alt="Chin-go-man" className="h-10 w-auto" />
+              <img src="/assets/chingoman_officail_logo_transparent.png" alt="Chin-go-man" className="h-12 w-auto" />
               <span className="font-bold text-lg text-white">Chin-go-man</span>
             </div>
             <p className="text-sm text-slate-400 max-w-md leading-relaxed">
