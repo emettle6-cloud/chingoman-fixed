@@ -2,14 +2,15 @@ import { useState } from 'react';
 import { Calculator, Ship, Info, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { CHINESE_PORTS, DESTINATION_PORTS, VEHICLE_TYPE_LABELS } from '@/lib/constants';
 import { calculateCIF, formatUSD } from '@/lib/cif';
-import { useUSDtoGHSRate, formatGHS } from '@/lib/exchangeRate';
+import { useCurrency } from '@/context/CurrencyContext';
+import { CurrencySelector } from '@/components/CurrencySelector';
 import { useRouter } from '@/context/RouterContext';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 
 export function CIFCalculatorPage() {
   const { navigate } = useRouter();
-  const { rate: ghsRate } = useUSDtoGHSRate();
+  const { currency, format: formatSelected } = useCurrency();
   const { user } = useAuth();
   const [carValue, setCarValue] = useState('25000');
   const [portChina, setPortChina] = useState('Guangzhou');
@@ -58,6 +59,10 @@ export function CIFCalculatorPage() {
           Calculate the Cost, Insurance, and Freight (CIF) value plus estimated duties for importing a vehicle
           from China to ports in Ghana and West Africa.
         </p>
+        <div className="flex items-center justify-center gap-2 mt-4">
+          <span className="text-sm text-slate-500">Show estimate in:</span>
+          <CurrencySelector />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -132,21 +137,21 @@ export function CIFCalculatorPage() {
               <div className="bg-white rounded-2xl border border-slate-200 p-6">
                 <h2 className="font-bold text-slate-900 text-lg mb-5">Cost Breakdown</h2>
                 <div className="space-y-3">
-                  <CostRow label="Vehicle Price (FOB)" value={result.carValue} />
-                  <CostRow label="Freight (China → Destination)" value={result.freight} icon={Ship} />
-                  <CostRow label="Marine Insurance (2.5%)" value={result.insurance} />
+                  <CostRow label="Vehicle Price (FOB)" value={result.carValue} formatSelected={currency !== 'USD' ? formatSelected : undefined} />
+                  <CostRow label="Freight (China → Destination)" value={result.freight} icon={Ship} formatSelected={currency !== 'USD' ? formatSelected : undefined} />
+                  <CostRow label="Marine Insurance (2.5%)" value={result.insurance} formatSelected={currency !== 'USD' ? formatSelected : undefined} />
                   <div className="pt-3 border-t border-slate-200">
-                    <CostRow label="CIF Total" value={result.totalCIF} bold />
+                    <CostRow label="CIF Total" value={result.totalCIF} bold formatSelected={currency !== 'USD' ? formatSelected : undefined} />
                   </div>
-                  <CostRow label="Est. Import Duty + Levies" value={result.dutyEstimate} muted />
+                  <CostRow label="Est. Import Duty + Levies" value={result.dutyEstimate} muted formatSelected={currency !== 'USD' ? formatSelected : undefined} />
                   <div className="pt-3 border-t-2 border-green-300">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-900">Estimated Landed Cost</span>
                       <span className="text-2xl font-bold text-green-600">{formatUSD(result.landedCost)}</span>
                     </div>
-                    {ghsRate && (
+                    {currency !== 'USD' && formatSelected(result.landedCost) && (
                       <p className="text-right text-xs text-slate-400 mt-0.5">
-                        ≈ {formatGHS(result.landedCost, ghsRate)}
+                        ≈ {formatSelected(result.landedCost)}
                       </p>
                     )}
                   </div>
@@ -200,16 +205,27 @@ export function CIFCalculatorPage() {
 }
 
 function CostRow({
-  label, value, bold, muted, icon: Icon,
-}: { label: string; value: number; bold?: boolean; muted?: boolean; icon?: React.ComponentType<{ className?: string }> }) {
+  label, value, bold, muted, icon: Icon, formatSelected,
+}: {
+  label: string;
+  value: number;
+  bold?: boolean;
+  muted?: boolean;
+  icon?: React.ComponentType<{ className?: string }>;
+  formatSelected?: (amountUSD: number) => string | null;
+}) {
+  const converted = formatSelected?.(value);
   return (
     <div className="flex items-center justify-between">
       <span className={`flex items-center gap-2 ${muted ? 'text-slate-400 text-sm' : 'text-slate-600'} ${bold ? 'font-bold text-slate-900' : ''}`}>
         {Icon && <Icon className="w-4 h-4 text-slate-400" />}
         {label}
       </span>
-      <span className={`${bold ? 'text-lg font-bold text-slate-900' : muted ? 'text-sm text-slate-500' : 'font-semibold text-slate-800'}`}>
-        {formatUSD(value)}
+      <span className="text-right">
+        <span className={`block ${bold ? 'text-lg font-bold text-slate-900' : muted ? 'text-sm text-slate-500' : 'font-semibold text-slate-800'}`}>
+          {formatUSD(value)}
+        </span>
+        {converted && <span className="block text-xs text-slate-400">≈ {converted}</span>}
       </span>
     </div>
   );
