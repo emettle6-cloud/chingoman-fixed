@@ -1,5 +1,6 @@
 import { AuthProvider } from '@/context/AuthContext';
 import { RouterProvider, useRouter } from '@/context/RouterContext';
+import { CurrencyProvider } from '@/context/CurrencyContext';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { HomePage } from '@/pages/HomePage';
@@ -41,13 +42,15 @@ function App() {
   return (
     <AuthProvider>
       <RouterProvider>
-        <div className="min-h-screen flex flex-col bg-slate-50">
-          <Header />
-          <main className="flex-1">
-            <PageRouter />
-          </main>
-          <Footer />
-        </div>
+        <CurrencyProvider>
+          <div className="min-h-screen flex flex-col bg-slate-50">
+            <Header />
+            <main className="flex-1">
+              <PageRouter />
+            </main>
+            <Footer />
+          </div>
+        </CurrencyProvider>
       </RouterProvider>
     </AuthProvider>
   );
