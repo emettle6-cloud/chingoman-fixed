@@ -4,10 +4,14 @@ import { useRouter, type Route } from '@/context/RouterContext';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { AuthModal } from './AuthModal';
+import { CurrencySelector } from './CurrencySelector';
+import { useCurrency } from '@/context/CurrencyContext';
+import { SUPPORTED_CURRENCIES } from '@/lib/exchangeRate';
 
 export function Header() {
   const { route, navigate } = useRouter();
   const { user, profile, signOut } = useAuth();
+  const { currency, setCurrency } = useCurrency();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -70,6 +74,7 @@ export function Header() {
             </nav>
 
             <div className="flex items-center gap-2">
+              <CurrencySelector className="hidden sm:block" />
               {user ? (
                 <div className="relative">
                   <button
@@ -156,6 +161,24 @@ export function Header() {
 
         {mobileOpen && (
           <div className="lg:hidden border-t border-slate-200 bg-white">
+            <div className="px-4 pt-3 pb-1">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Display Prices In</p>
+              <div className="flex flex-wrap gap-2">
+                {SUPPORTED_CURRENCIES.map((c) => (
+                  <button
+                    key={c.code}
+                    onClick={() => setCurrency(c.code)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                      c.code === currency
+                        ? 'bg-green-50 border-green-300 text-green-700'
+                        : 'border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <span>{c.flag}</span> {c.code}
+                  </button>
+                ))}
+              </div>
+            </div>
             <nav className="px-4 py-3 space-y-1">
               {navItems.map((item) => (
                 <button
