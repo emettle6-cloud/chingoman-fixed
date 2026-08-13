@@ -10,6 +10,7 @@ import type { Vehicle, Inspection, Review, Profile } from '@/types';
 import { useRouter } from '@/context/RouterContext';
 import { useAuth } from '@/context/AuthContext';
 import { formatUSD, calculateCIF } from '@/lib/cif';
+import { useCurrency } from '@/context/CurrencyContext';
 import {
   VEHICLE_TYPE_LABELS, VEHICLE_TYPE_COLORS, SOH_RATING, CHARGING_ADVICE,
   VEHICLE_STATUS_LABELS,
@@ -23,6 +24,7 @@ interface VehicleDetailPageProps {
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const { navigate } = useRouter();
   const { user, profile } = useAuth();
+  const { currency, format: formatSelected } = useCurrency();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [loading, setLoading] = useState(true);
@@ -535,6 +537,9 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               <div className="mb-4">
                 <p className="text-xs text-slate-500">Vehicle Price (FOB)</p>
                 <p className="text-3xl font-bold text-slate-900">{formatUSD(Number(vehicle.price_usd))}</p>
+                {currency !== 'USD' && formatSelected(Number(vehicle.price_usd)) && (
+                  <p className="text-sm text-slate-400 mt-0.5">≈ {formatSelected(Number(vehicle.price_usd))}</p>
+                )}
               </div>
 
               {/* CIF preview */}
@@ -555,7 +560,12 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                     </div>
                     <div className="flex justify-between pt-2 border-t border-green-200">
                       <span className="font-bold text-slate-900">Est. Landed Cost</span>
-                      <span className="font-bold text-green-700">{formatUSD(cifPreview.landedCost)}</span>
+                      <span className="text-right">
+                        <span className="block font-bold text-green-700">{formatUSD(cifPreview.landedCost)}</span>
+                        {currency !== 'USD' && formatSelected(cifPreview.landedCost) && (
+                          <span className="block text-xs text-slate-400">≈ {formatSelected(cifPreview.landedCost)}</span>
+                        )}
+                      </span>
                     </div>
                   </div>
                   <button
