@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Car, Heart, MessageSquare, Ship, TrendingUp, Plus, Eye, PackageX, RotateCcw, Wrench, Phone, MessageCircle, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Car, Heart, MessageSquare, Ship, TrendingUp, Plus, Eye, PackageX, RotateCcw, Wrench, Phone, MessageCircle, CheckCircle2, AlertCircle, ShieldCheck, Hourglass, CreditCard } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from '@/context/RouterContext';
 import { supabase } from '@/lib/supabase';
@@ -7,7 +7,40 @@ import type { Vehicle, Favorite, SparePart } from '@/types';
 import { VehicleCard } from '@/components/VehicleCard';
 import { SparePartCard } from '@/components/SparePartCard';
 import { formatUSD } from '@/lib/cif';
-import { VEHICLE_STATUS_LABELS, VEHICLE_STATUS_COLORS } from '@/lib/constants';
+import { VEHICLE_STATUS_LABELS, VEHICLE_STATUS_COLORS, LISTING_FEES } from '@/lib/constants';
+
+function SellerVerificationBanner() {
+  const { profile } = useAuth();
+  const { navigate } = useRouter();
+  const status = profile?.seller_verification_status ?? 'none';
+
+  if (status === 'approved') return null;
+
+  if (status === 'pending') {
+    return (
+      <div className="mb-8 flex items-start gap-3 bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-2xl px-5 py-4">
+        <Hourglass className="w-5 h-5 mt-0.5 flex-shrink-0" />
+        <span>Your seller verification application is under review. We'll email you once it's approved and you can start listing vehicles.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-8 flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-2xl px-5 py-4">
+      <ShieldCheck className="w-5 h-5 mt-0.5 flex-shrink-0" />
+      <div className="flex-1">
+        <span>
+          {status === 'rejected'
+            ? "Your seller verification wasn't approved. You can review your details and re-apply."
+            : "You'll need to get verified before you can list a vehicle for sale."}
+        </span>
+        <button onClick={() => navigate({ name: 'sell' })} className="block mt-1.5 font-semibold hover:underline">
+          {status === 'rejected' ? 'Re-apply for verification →' : 'Get verified →'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function ContactInfoCard() {
   const { profile, refreshProfile } = useAuth();
@@ -121,6 +154,20 @@ export function DashboardPage() {
   const [favorites, setFavorites] = useState<Vehicle[]>([]);
   const [stats, setStats] = useState({ listings: 0, favorites: 0, views: 0 });
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
+
+  async function completePayment(vehicleId: string) {
+    setPayingId(vehicleId);
+    const { data, error } = await supabase.functions.invoke('paystack-initialize', {
+      body: { vehicle_id: vehicleId },
+    });
+    setPayingId(null);
+    if (error || !data?.authorization_url) {
+      alert(data?.error ?? error?.message ?? 'Could not start payment. Please try again in a moment.');
+      return;
+    }
+    window.location.href = data.authorization_url;
+  }
 
   function loadListings() {
     if (!profile) return;
@@ -227,6 +274,8 @@ export function DashboardPage() {
         <StatCard icon={TrendingUp} label="Account Type" value={profile?.user_type === 'marketer' ? 'Marketer' : 'Buyer'} color="text-emerald-600 bg-emerald-50" />
       </div>
 
+      <SellerVerificationBanner />
+
       <ContactInfoCard />
 
       {/* My listings */}
@@ -241,6 +290,15 @@ export function DashboardPage() {
                   <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${VEHICLE_STATUS_COLORS[v.status]}`}>
                     {VEHICLE_STATUS_LABELS[v.status]}
                   </span>
+                  {v.status === 'pending' && v.payment_status === 'unpaid' && (
+                    <button
+                      onClick={() => completePayment(v.id)}
+                      disabled={payingId === v.id}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 px-2.5 py-1 rounded-full"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" /> {payingId === v.id ? 'Redirecting...' : `Pay $${LISTING_FEES[v.tier === 'premium' ? 'premium' : 'standard'].amountUsd} to Submit`}
+                    </button>
+                  )}
                   {(v.status === 'active' || v.status === 'sold' || v.status === 'out_of_stock') && (
                     <div className="flex items-center gap-1.5">
                       {v.status === 'active' ? (

@@ -140,6 +140,30 @@ export const VEHICLE_STATUS_COLORS: Record<string, string> = {
   pending: 'bg-blue-100 text-blue-700 border-blue-300',
 };
 
+export const LISTING_FEES: Record<'standard' | 'premium', { label: string; amountUsd: number; description: string }> = {
+  standard: {
+    label: 'Standard Listing',
+    amountUsd: 15,
+    description: 'Your vehicle appears in Browse and search results once approved.',
+  },
+  premium: {
+    label: 'Premium Placement',
+    amountUsd: 25,
+    description: 'Everything in Standard, plus top-of-Browse placement and a spot on the homepage featured carousel.',
+  },
+};
+
+export const SELLER_VERIFICATION_STATUS_LABELS: Record<string, string> = {
+  none: 'Not submitted',
+  pending: 'Under review',
+  approved: 'Verified',
+  rejected: 'Not approved',
+};
+
+export const ID_TYPES = [
+  'Ghana Card', 'National ID (NIN)', 'Passport', "Driver's License", 'Business Registration Certificate', 'Other',
+] as const;
+
 export const PART_CATEGORIES = [
   'Engine & Drivetrain',
   'Body & Exterior',

@@ -13,7 +13,8 @@ export type Route =
   | { name: 'about' }
   | { name: 'parts'; category?: string }
   | { name: 'part'; id: string }
-  | { name: 'sell-part' };
+  | { name: 'sell-part' }
+  | { name: 'payment-callback' };
 
 interface RouterContextValue {
   route: Route;
@@ -52,6 +53,7 @@ function routeToUrl(route: Route): string {
       return `/parts${params.toString() ? `?${params}` : ''}`;
     case 'part': return `/part/${route.id}`;
     case 'sell-part': return '/sell-part';
+    case 'payment-callback': return `/payment/callback${params.toString() ? `?${params}` : ''}`;
     default: return '/';
   }
 }
@@ -89,6 +91,7 @@ function urlToRoute(pathname: string, search: string): Route {
     case 'part':
       return second ? { name: 'part', id: second } : { name: 'parts' };
     case 'sell-part': return { name: 'sell-part' };
+    case 'payment': return second === 'callback' ? { name: 'payment-callback' } : { name: 'home' };
     default: return { name: 'home' };
   }
 }

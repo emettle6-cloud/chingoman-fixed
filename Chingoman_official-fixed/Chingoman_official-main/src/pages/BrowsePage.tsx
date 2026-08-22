@@ -57,6 +57,11 @@ export function BrowsePage() {
     if (filters.minPrice) query = query.gte('price_usd', Number(filters.minPrice));
     if (filters.maxPrice) query = query.lte('price_usd', Number(filters.maxPrice));
 
+    // Premium-tier listings (paid placement) always float to the top of
+    // Browse results, regardless of which sort the visitor picked — the
+    // chosen sort just decides the order within/after that.
+    query = query.order('is_featured', { ascending: false });
+
     switch (filters.sortBy) {
       case 'price-low': query = query.order('price_usd', { ascending: true }); break;
       case 'price-high': query = query.order('price_usd', { ascending: false }); break;

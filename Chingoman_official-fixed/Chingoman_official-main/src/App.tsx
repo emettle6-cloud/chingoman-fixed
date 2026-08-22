@@ -16,6 +16,7 @@ import { AboutPage } from '@/pages/AboutPage';
 import { SparePartsPage } from '@/pages/SparePartsPage';
 import { SparePartDetailPage } from '@/pages/SparePartDetailPage';
 import { SellPartPage } from '@/pages/SellPartPage';
+import { PaymentCallbackPage } from '@/pages/PaymentCallbackPage';
 
 function PageRouter() {
   const { route } = useRouter();
@@ -34,6 +35,7 @@ function PageRouter() {
     case 'parts': return <SparePartsPage />;
     case 'part': return <SparePartDetailPage partId={route.id} />;
     case 'sell-part': return <SellPartPage />;
+    case 'payment-callback': return <PaymentCallbackPage />;
     default: return <HomePage />;
   }
 }

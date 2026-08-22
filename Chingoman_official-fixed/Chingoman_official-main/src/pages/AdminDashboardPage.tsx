@@ -1,13 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
-import { CheckCircle2, XCircle, FileText, ShieldCheck, Star, Trash2, PackageX, RotateCcw, Car, Wrench, Wand2, Pencil } from 'lucide-react';
+import { CheckCircle2, XCircle, FileText, ShieldCheck, Star, Trash2, PackageX, RotateCcw, Car, Wrench, Wand2, Pencil, UserCheck, ExternalLink, CreditCard, Gift } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import type { Vehicle, SparePart } from '@/types';
+import type { Vehicle, SparePart, SellerVerificationRequest } from '@/types';
 import { VEHICLE_STATUS_LABELS, VEHICLE_STATUS_COLORS } from '@/lib/constants';
 import { QuickImportPanel } from '@/components/QuickImportPanel';
 import { EditVehicleModal, EditPartModal } from '@/components/AdminEditModal';
 
-type Tab = 'vehicles' | 'parts' | 'import';
+type Tab = 'vehicles' | 'parts' | 'verifications' | 'import';
 
 export function AdminDashboardPage() {
   const { profile, loading: authLoading } = useAuth();
@@ -23,6 +23,9 @@ export function AdminDashboardPage() {
   const [activeParts, setActiveParts] = useState<SparePart[]>([]);
   const [unavailableParts, setUnavailableParts] = useState<SparePart[]>([]);
 
+  const [pendingVerifications, setPendingVerifications] = useState<SellerVerificationRequest[]>([]);
+  const [reviewedVerifications, setReviewedVerifications] = useState<SellerVerificationRequest[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [actioningId, setActioningId] = useState<string | null>(null);
 
@@ -31,6 +34,7 @@ export function AdminDashboardPage() {
     const [
       { data: pendingData }, { data: activeData }, { data: unavailableData },
       { data: pendingPartsData }, { data: activePartsData }, { data: unavailablePartsData },
+      { data: pendingVerificationData }, { data: reviewedVerificationData },
     ] = await Promise.all([
       supabase.from('vehicles').select('*').eq('status', 'pending').order('created_at', { ascending: true }),
       supabase.from('vehicles').select('*').eq('status', 'active').order('created_at', { ascending: false }),
@@ -38,6 +42,8 @@ export function AdminDashboardPage() {
       supabase.from('spare_parts').select('*').eq('status', 'pending').order('created_at', { ascending: true }),
       supabase.from('spare_parts').select('*').eq('status', 'active').order('created_at', { ascending: false }),
       supabase.from('spare_parts').select('*').in('status', ['sold', 'out_of_stock']).order('updated_at', { ascending: false }),
+      supabase.from('seller_verification_requests').select('*').eq('status', 'pending').order('created_at', { ascending: true }),
+      supabase.from('seller_verification_requests').select('*').in('status', ['approved', 'rejected']).order('reviewed_at', { ascending: false }).limit(50),
     ]);
     setPending((pendingData as Vehicle[]) ?? []);
     setActive((activeData as Vehicle[]) ?? []);
@@ -45,6 +51,8 @@ export function AdminDashboardPage() {
     setPendingParts((pendingPartsData as SparePart[]) ?? []);
     setActiveParts((activePartsData as SparePart[]) ?? []);
     setUnavailableParts((unavailablePartsData as SparePart[]) ?? []);
+    setPendingVerifications((pendingVerificationData as SellerVerificationRequest[]) ?? []);
+    setReviewedVerifications((reviewedVerificationData as SellerVerificationRequest[]) ?? []);
     setLoading(false);
   }, []);
 
@@ -52,9 +60,61 @@ export function AdminDashboardPage() {
     if (profile?.is_admin) loadAll();
   }, [profile, loadAll]);
 
-  // ---- Vehicles ----
-  async function approve(id: string) {
+  // ---- Seller verification ----
+  async function viewVerificationDocument(url: string) {
+    try {
+      const path = decodeURIComponent(new URL(url).pathname.split('/verification-documents/')[1] ?? '');
+      if (!path) { window.open(url, '_blank'); return; }
+      const { data, error } = await supabase.storage.from('verification-documents').createSignedUrl(path, 60 * 10);
+      if (error || !data) { alert(`Could not open document: ${error?.message ?? 'unknown error'}`); return; }
+      window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    } catch {
+      window.open(url, '_blank');
+    }
+  }
+
+  async function approveVerification(id: string) {
     setActioningId(id);
+    const { error } = await supabase
+      .from('seller_verification_requests')
+      .update({ status: 'approved', reviewed_by: profile?.id ?? null, reviewed_at: new Date().toISOString() })
+      .eq('id', id);
+    setActioningId(null);
+    if (error) { alert(`Could not approve applicant: ${error.message}`); return; }
+    loadAll();
+  }
+
+  async function rejectVerification(id: string) {
+    const notes = window.prompt('Optional note for this rejection (not shown to the applicant automatically):') ?? '';
+    setActioningId(id);
+    const { error } = await supabase
+      .from('seller_verification_requests')
+      .update({ status: 'rejected', admin_notes: notes || null, reviewed_by: profile?.id ?? null, reviewed_at: new Date().toISOString() })
+      .eq('id', id);
+    setActioningId(null);
+    if (error) { alert(`Could not reject applicant: ${error.message}`); return; }
+    loadAll();
+  }
+
+  // ---- Vehicles ----
+  async function approve(id: string, vehicle: Vehicle) {
+    if (vehicle.payment_status !== 'paid' && vehicle.payment_status !== 'waived') {
+      alert("This listing's fee hasn't been paid yet, so it can't go active. Use \"Waive Fee & Approve\" to comp it, or wait for payment.");
+      return;
+    }
+    setActioningId(id);
+    const { error } = await supabase.from('vehicles').update({ status: 'active', is_verified: true }).eq('id', id);
+    setActioningId(null);
+    if (error) { alert(`Could not approve listing: ${error.message}`); return; }
+    loadAll();
+  }
+
+  async function waiveFeeAndApprove(id: string) {
+    const confirmed = window.confirm('Waive the listing fee for this vehicle and approve it now?');
+    if (!confirmed) return;
+    setActioningId(id);
+    const { error: waiveError } = await supabase.from('vehicles').update({ payment_status: 'waived' }).eq('id', id);
+    if (waiveError) { setActioningId(null); alert(`Could not waive fee: ${waiveError.message}`); return; }
     const { error } = await supabase.from('vehicles').update({ status: 'active', is_verified: true }).eq('id', id);
     setActioningId(null);
     if (error) { alert(`Could not approve listing: ${error.message}`); return; }
@@ -152,7 +212,8 @@ export function AdminDashboardPage() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       <h1 className="text-2xl font-bold text-slate-900 mb-1">Listing Approvals</h1>
       <p className="text-slate-500 mb-6">
-        Review inspection reports, approve or reject pending listings, and manage featured vehicles and parts.
+        Verify sellers before they can list, review inspection reports and listing fee payments, approve or reject
+        pending listings, and manage featured vehicles and parts.
       </p>
 
       <div className="flex gap-2 mb-8 border-b border-slate-200">
@@ -171,6 +232,14 @@ export function AdminDashboardPage() {
           }`}
         >
           <Wrench className="w-4 h-4" /> Spare Parts {pendingParts.length > 0 && `(${pendingParts.length})`}
+        </button>
+        <button
+          onClick={() => setTab('verifications')}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+            tab === 'verifications' ? 'border-green-600 text-green-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" /> Seller Verification {pendingVerifications.length > 0 && `(${pendingVerifications.length})`}
         </button>
         <button
           onClick={() => setTab('import')}
@@ -196,10 +265,24 @@ export function AdminDashboardPage() {
             </div>
           ) : (
             <div className="space-y-4 mb-10">
-              {pending.map((v) => (
+              {pending.map((v) => {
+                const isPaid = v.payment_status === 'paid' || v.payment_status === 'waived';
+                return (
                 <div key={v.id} className="bg-white border border-slate-200 rounded-xl p-5 flex items-center justify-between gap-4">
                   <div>
-                    <p className="font-semibold text-slate-900">{v.year} {v.make} {v.model}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-slate-900">{v.year} {v.make} {v.model}</p>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                        isPaid ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
+                      }`}>
+                        <CreditCard className="w-3 h-3" /> {v.payment_status === 'waived' ? 'Fee Waived' : v.payment_status === 'paid' ? 'Paid' : 'Unpaid'}
+                      </span>
+                      {v.tier === 'premium' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border bg-amber-50 text-amber-700 border-amber-200">
+                          <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Premium
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-slate-500">${v.price_usd?.toLocaleString()} · {v.port_china}</p>
                     {v.inspection_report_url ? (
                       <a href={v.inspection_report_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-green-600 hover:underline mt-1">
@@ -209,19 +292,30 @@ export function AdminDashboardPage() {
                       <p className="text-sm text-red-500 mt-1">No inspection report attached</p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                     <button onClick={() => setEditingVehicle(v)} disabled={actioningId === v.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-50">
                       <Pencil className="w-4 h-4" /> Edit
                     </button>
                     <button onClick={() => reject(v.id)} disabled={actioningId === v.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-50">
                       <XCircle className="w-4 h-4" /> Reject
                     </button>
-                    <button onClick={() => approve(v.id)} disabled={actioningId === v.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50">
+                    {!isPaid && (
+                      <button onClick={() => waiveFeeAndApprove(v.id)} disabled={actioningId === v.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-amber-700 border border-amber-200 hover:bg-amber-50 disabled:opacity-50">
+                        <Gift className="w-4 h-4" /> Waive Fee & Approve
+                      </button>
+                    )}
+                    <button
+                      onClick={() => approve(v.id, v)}
+                      disabled={actioningId === v.id || !isPaid}
+                      title={!isPaid ? "Listing fee hasn't been paid yet" : undefined}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                       <CheckCircle2 className="w-4 h-4" /> Approve
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -298,6 +392,84 @@ export function AdminDashboardPage() {
                       <Trash2 className="w-4 h-4" /> Delete
                     </button>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : tab === 'verifications' ? (
+        <>
+          {/* Pending verification applications */}
+          <h2 className="text-lg font-semibold text-slate-900 mb-3">Pending Applications</h2>
+          {pendingVerifications.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500 mb-10">
+              No verification applications waiting on review.
+            </div>
+          ) : (
+            <div className="space-y-4 mb-10">
+              {pendingVerifications.map((r) => (
+                <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-5">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-slate-900">{r.full_name}</p>
+                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold border bg-blue-50 text-blue-700 border-blue-200 capitalize">
+                          {r.requested_role}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-500 mt-0.5">{r.email} · {r.phone}{r.whatsapp ? ` · WhatsApp: ${r.whatsapp}` : ''}</p>
+                      <p className="text-sm text-slate-500">{r.city}, {r.country}</p>
+                      <p className="text-sm text-slate-500 mt-1">{r.id_type}: {r.id_number}</p>
+                      {r.business_name && <p className="text-sm text-slate-500">Business: {r.business_name}{r.business_registration_no ? ` (${r.business_registration_no})` : ''}</p>}
+                      {r.years_experience && <p className="text-sm text-slate-500">Experience: {r.years_experience}</p>}
+                      {r.sourcing_details && <p className="text-sm text-slate-500 mt-1 max-w-xl">{r.sourcing_details}</p>}
+                      {r.reference_url && (
+                        <a href={r.reference_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-green-600 hover:underline mt-1">
+                          <ExternalLink className="w-3.5 h-3.5" /> Reference link
+                        </a>
+                      )}
+                      <div>
+                        <button onClick={() => viewVerificationDocument(r.id_document_url)} className="inline-flex items-center gap-1.5 text-sm text-green-600 hover:underline mt-1.5">
+                          <FileText className="w-4 h-4" /> View ID / business document
+                        </button>
+                      </div>
+                      {r.notify_error && (
+                        <p className="text-xs text-amber-600 mt-1.5">Note: the applicant's confirmation email failed to send ({r.notify_error}). They're still in this queue regardless.</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => rejectVerification(r.id)} disabled={actioningId === r.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-50">
+                        <XCircle className="w-4 h-4" /> Reject
+                      </button>
+                      <button onClick={() => approveVerification(r.id)} disabled={actioningId === r.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50">
+                        <CheckCircle2 className="w-4 h-4" /> Approve
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Recently reviewed */}
+          <h2 className="text-lg font-semibold text-slate-900 mb-3">Recently Reviewed</h2>
+          {reviewedVerifications.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
+              Nothing reviewed yet.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {reviewedVerifications.map((r) => (
+                <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                  <div>
+                    <p className="font-semibold text-slate-900">{r.full_name} <span className="text-slate-400 font-normal capitalize">· {r.requested_role}</span></p>
+                    {r.admin_notes && <p className="text-xs text-slate-400 mt-0.5">{r.admin_notes}</p>}
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                    r.status === 'approved' ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'
+                  }`}>
+                    {r.status === 'approved' ? 'Approved' : 'Rejected'}
+                  </span>
                 </div>
               ))}
             </div>

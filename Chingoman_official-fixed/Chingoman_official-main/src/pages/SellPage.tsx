@@ -1,15 +1,18 @@
 import { useRef, useState } from 'react';
 import {
-  UserCheck, Store, ArrowRight, CheckCircle2, Info, Ship, FileText,
-  Lock, BadgeCheck, Upload, AlertTriangle, ImagePlus, X, BatteryCharging, Plug,
+  UserCheck, Store, ArrowRight, CheckCircle2, Info,
+  Lock, Upload, AlertTriangle, ImagePlus, X, BatteryCharging, Plug,
+  ShieldCheck, Hourglass, Star, CreditCard,
 } from 'lucide-react';
 import { useRouter } from '@/context/RouterContext';
 import { useAuth } from '@/context/AuthContext';
 import { AuthModal } from '@/components/AuthModal';
+import { SellerVerificationForm } from '@/components/SellerVerificationForm';
 import { supabase } from '@/lib/supabase';
-import { MAKES, CHINESE_PORTS, VEHICLE_TYPE_LABELS, YEAR_RANGE } from '@/lib/constants';
+import { MAKES, CHINESE_PORTS, VEHICLE_TYPE_LABELS, YEAR_RANGE, LISTING_FEES } from '@/lib/constants';
+import type { ListingTier } from '@/types';
 
-type Role = 'select' | 'marketer' | 'direct';
+export type Role = 'select' | 'marketer' | 'direct';
 
 const CHARGING_TYPE_OPTIONS = [
   'CCS2', 'CCS2 / CHAdeMO', 'CCS2 / GB/T', 'GB/T', 'NIO Swap/CCS2', 'Tesla CCS2', 'AC Level 2', 'AC Level 1',
@@ -17,21 +20,24 @@ const CHARGING_TYPE_OPTIONS = [
 
 export function SellPage() {
   const { navigate } = useRouter();
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [role, setRole] = useState<Role>('select');
   const [authOpen, setAuthOpen] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [submittedVehicleId, setSubmittedVehicleId] = useState<string | null>(null);
   const [form, setForm] = useState({
     make: '', model: '', year: '2023', vehicleType: 'ICE',
     steeringSide: 'LHD', price: '', mileage: '', color: '',
     portChina: 'Guangzhou', description: '',
     phone: '', whatsapp: '',
     batteryCapacity: '', batterySOH: '', rangeKm: '', chargingType: 'CCS2', hasHomeCharger: false,
+    tier: 'standard' as ListingTier,
   });
   const [inspectionFile, setInspectionFile] = useState<File | null>(null);
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
+  const [payLoading, setPayLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,6 +67,25 @@ export function SellPage() {
   function startFlow(r: Role) {
     if (!user) { setAuthOpen(true); return; }
     setRole(r);
+  }
+
+  async function payForListing(vehicleId: string) {
+    setPayError(null);
+    setPayLoading(true);
+    const { data, error } = await supabase.functions.invoke('paystack-initialize', {
+      body: { vehicle_id: vehicleId },
+    });
+    setPayLoading(false);
+
+    if (error || !data?.authorization_url) {
+      setPayError(
+        data?.error ?? error?.message ??
+        "Could not start payment. Your listing is saved — you can try paying again from your Dashboard.",
+      );
+      return;
+    }
+
+    window.location.href = data.authorization_url;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -150,12 +175,14 @@ export function SellPage() {
       mileage_km: form.mileage ? Number(form.mileage) : null,
       color: form.color || null,
       port_china: form.portChina,
-      listing_type: role,
+      listing_type: role === 'select' ? 'direct' : role,
       description: form.description,
       status: 'pending',
       shipping_available: true,
       is_verified: false,
       is_featured: false,
+      payment_status: 'unpaid',
+      tier: form.tier,
       images: uploadedImageUrls,
       inspection_report_url: publicUrl,
       battery_capacity_kwh: isElectrified && form.batteryCapacity ? Number(form.batteryCapacity) : null,
@@ -172,35 +199,40 @@ export function SellPage() {
       return;
     }
 
-    if (vehicle) setSubmitted(true);
+    if (vehicle) {
+      setSubmittedVehicleId(vehicle.id);
+      // Immediately hand off to Paystack — the listing already exists as a
+      // pending/unpaid draft, so if this fails the seller can retry from
+      // their Dashboard without losing any of the details or photos above.
+      payForListing(vehicle.id);
+    }
   }
 
-  if (submitted) {
+  // ---- Gate: not signed in yet is handled by startFlow(); everything below
+  // assumes `user` exists once role !== 'select'. ----
+
+  if (submittedVehicleId) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
         <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
-          <CheckCircle2 className="w-8 h-8" />
+          <CreditCard className="w-8 h-8" />
         </div>
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">Listing Submitted!</h1>
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">One Last Step — Pay the Listing Fee</h1>
         <p className="text-slate-500 mb-6">
-          Your vehicle has been submitted for review. Once our team verifies the inspection report,
-          your listing will go live on Chin-go-man.
+          Your vehicle details are saved. To send it for admin review, pay the {form.tier === 'premium' ? 'Premium' : 'Standard'} listing
+          fee (${LISTING_FEES[form.tier].amountUsd}). You'll be redirected to Paystack to complete payment securely.
         </p>
+        {payError && <p className="text-sm text-red-600 mb-4">{payError}</p>}
         <div className="flex gap-3 justify-center">
-          <button onClick={() => navigate({ name: 'browse' })} className="bg-green-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-green-700 transition-colors">
-            Browse Vehicles
-          </button>
           <button
-            onClick={() => {
-              photos.forEach((p) => URL.revokeObjectURL(p.preview));
-              setPhotos([]);
-              setInspectionFile(null);
-              setSubmitted(false);
-              setRole('select');
-            }}
-            className="border border-slate-200 text-slate-700 font-semibold px-6 py-3 rounded-xl hover:bg-slate-50 transition-colors"
+            onClick={() => payForListing(submittedVehicleId)}
+            disabled={payLoading}
+            className="bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
           >
-            List Another
+            {payLoading ? 'Redirecting...' : `Pay $${LISTING_FEES[form.tier].amountUsd} & Submit`}
+          </button>
+          <button onClick={() => navigate({ name: 'dashboard' })} className="border border-slate-200 text-slate-700 font-semibold px-6 py-3 rounded-xl hover:bg-slate-50 transition-colors">
+            Pay Later from Dashboard
           </button>
         </div>
       </div>
@@ -231,10 +263,10 @@ export function SellPage() {
               located in Chinese ports and facilitate the import process.
             </p>
             <div className="space-y-2 mb-5">
+              <RoleStep text="Get verified by our team (one-time)" />
               <RoleStep text="List a vehicle from a Chinese port" />
               <RoleStep text="Provide inspection reports from Chinese ports" />
-              <RoleStep text="Coordinate shipping to Tema or Lagos" />
-              <RoleStep text="Earn commission on successful sales" />
+              <RoleStep text="Pay a flat listing fee per vehicle" />
             </div>
             <div className="flex items-center gap-2 text-green-600 font-semibold text-sm group-hover:gap-3 transition-all">
               Continue as Marketer <ArrowRight className="w-4 h-4" />
@@ -252,9 +284,9 @@ export function SellPage() {
               and West Africa without going through a marketer.
             </p>
             <div className="space-y-2 mb-5">
+              <RoleStep text="Get verified by our team (one-time)" />
               <RoleStep text="List your own vehicle directly" />
               <RoleStep text="Upload your own inspection documents" />
-              <RoleStep text="Negotiate directly with buyers" />
               <RoleStep text="Pay a flat listing fee (no commission)" />
             </div>
             <div className="flex items-center gap-2 text-green-600 font-semibold text-sm group-hover:gap-3 transition-all">
@@ -264,8 +296,28 @@ export function SellPage() {
         </div>
       )}
 
-      {/* Listing form */}
-      {role !== 'select' && (
+      {/* Verification gate */}
+      {role !== 'select' && !profile && (
+        <div className="text-center text-slate-400 py-16">Loading your account...</div>
+      )}
+
+      {role !== 'select' && profile && profile.seller_verification_status !== 'approved' && (
+        <>
+          {profile.seller_verification_status === 'pending' ? (
+            <PendingReviewNotice onBack={() => setRole('select')} />
+          ) : (
+            <SellerVerificationForm
+              role={role}
+              onBack={() => setRole('select')}
+              onSubmitted={refreshProfile}
+              wasRejected={profile.seller_verification_status === 'rejected'}
+            />
+          )}
+        </>
+      )}
+
+      {/* Listing form — only once the seller is verified */}
+      {role !== 'select' && profile?.seller_verification_status === 'approved' && (
         <div>
           <div className="bg-slate-50 rounded-2xl p-5 mb-6 flex gap-3">
             <Info className="w-5 h-5 text-slate-500 shrink-0 mt-0.5" />
@@ -277,7 +329,7 @@ export function SellPage() {
                 {role === 'marketer'
                   ? 'You are listing a vehicle on behalf of a buyer. The car is currently in China. You will coordinate shipping and customs.'
                   : 'You are listing your own vehicle for sale. Buyers will contact you directly through the platform.'}
-                {' '}All listings require a verified inspection report before going live.
+                {' '}All listings require a verified inspection report and admin approval before going live.
               </p>
             </div>
           </div>
@@ -475,6 +527,29 @@ export function SellPage() {
               )}
             </div>
 
+            {/* Listing fee / tier */}
+            <div>
+              <h3 className="font-semibold text-slate-900 text-sm mb-1">Listing Plan</h3>
+              <p className="text-xs text-slate-400 mb-3">Paid securely via Paystack once you submit. Your listing goes to admin review either way.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <TierOption
+                  selected={form.tier === 'standard'}
+                  onSelect={() => setForm({ ...form, tier: 'standard' })}
+                  title={LISTING_FEES.standard.label}
+                  price={LISTING_FEES.standard.amountUsd}
+                  description={LISTING_FEES.standard.description}
+                />
+                <TierOption
+                  selected={form.tier === 'premium'}
+                  onSelect={() => setForm({ ...form, tier: 'premium' })}
+                  title={LISTING_FEES.premium.label}
+                  price={LISTING_FEES.premium.amountUsd}
+                  description={LISTING_FEES.premium.description}
+                  highlight
+                />
+              </div>
+            </div>
+
             {submitError && (
               <p className="text-sm text-red-600 text-center">{submitError}</p>
             )}
@@ -507,7 +582,7 @@ export function SellPage() {
                 disabled={uploading}
                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
               >
-                {uploading ? 'Submitting...' : 'Submit Listing for Review'}
+                {uploading ? 'Submitting...' : `Continue to Payment ($${LISTING_FEES[form.tier].amountUsd})`}
               </button>
             </div>
           </form>
@@ -536,10 +611,57 @@ export function SellPage() {
   );
 }
 
+function PendingReviewNotice({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="max-w-2xl mx-auto text-center bg-white rounded-2xl border border-slate-200 p-10">
+      <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-4">
+        <Hourglass className="w-8 h-8" />
+      </div>
+      <h2 className="text-xl font-bold text-slate-900 mb-2">Your Application is Under Review</h2>
+      <p className="text-slate-500 mb-6">
+        Our team is verifying the details you submitted. We'll email you as soon as you're approved to list
+        vehicles — this usually takes 1-2 business days.
+      </p>
+      <button onClick={onBack} className="text-green-600 font-semibold hover:underline">
+        ← Back
+      </button>
+    </div>
+  );
+}
+
+function TierOption({
+  selected, onSelect, title, price, description, highlight,
+}: {
+  selected: boolean; onSelect: () => void; title: string; price: number; description: string; highlight?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`text-left rounded-xl border-2 p-4 transition-colors ${
+        selected ? 'border-green-500 bg-green-50' : 'border-slate-200 hover:border-slate-300 bg-white'
+      }`}
+    >
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="font-semibold text-slate-900 text-sm flex items-center gap-1.5">
+          {highlight && <Star className="w-4 h-4 text-amber-500 fill-amber-500" />}
+          {title}
+        </span>
+        <span className="font-bold text-slate-900">${price}</span>
+      </div>
+      <p className="text-xs text-slate-500 leading-relaxed">{description}</p>
+    </button>
+  );
+}
+
 function RoleStep({ text }: { text: string }) {
   return (
     <div className="flex items-center gap-2 text-sm text-slate-600">
-      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> {text}
+      {text.startsWith('Get verified') ? (
+        <ShieldCheck className="w-4 h-4 text-blue-500 shrink-0" />
+      ) : (
+        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+      )} {text}
     </div>
   );
 }

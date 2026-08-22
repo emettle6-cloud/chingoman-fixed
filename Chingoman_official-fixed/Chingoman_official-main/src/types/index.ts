@@ -3,6 +3,9 @@ export type SteeringSide = 'LHD' | 'RHD';
 export type ListingType = 'marketer' | 'direct';
 export type VehicleStatus = 'active' | 'sold' | 'out_of_stock' | 'rejected' | 'draft' | 'pending';
 export type UserType = 'buyer' | 'marketer' | 'admin';
+export type PaymentStatus = 'unpaid' | 'paid' | 'waived' | 'refunded';
+export type ListingTier = 'standard' | 'premium';
+export type SellerVerificationStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
 export interface Vehicle {
   id: string;
@@ -36,33 +39,8 @@ export interface Vehicle {
   is_featured: boolean;
   description: string | null;
   status: VehicleStatus;
-  views: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export type PartCategory =
-  | 'engine' | 'body' | 'electrical' | 'battery' | 'brakes' | 'suspension' | 'interior' | 'wheels_tyres' | 'other';
-export type PartCondition = 'new' | 'used' | 'refurbished';
-
-export interface SparePart {
-  id: string;
-  seller_id: string | null;
-  name: string;
-  category: PartCategory;
-  compatible_make: string | null;
-  compatible_model: string | null;
-  compatible_year_from: number | null;
-  compatible_year_to: number | null;
-  condition: PartCondition;
-  price_usd: number;
-  quantity: number;
-  port_china: string;
-  images: string[];
-  description: string | null;
-  is_verified: boolean;
-  is_featured: boolean;
-  status: VehicleStatus;
+  payment_status: PaymentStatus;
+  tier: ListingTier;
   views: number;
   created_at: string;
   updated_at: string;
@@ -84,8 +62,51 @@ export interface Profile {
   bio: string;
   rating: number;
   total_reviews: number;
+  seller_verification_status: SellerVerificationStatus;
+  seller_verified_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface SellerVerificationRequest {
+  id: string;
+  profile_id: string;
+  requested_role: 'marketer' | 'direct';
+  full_name: string;
+  email: string;
+  phone: string;
+  whatsapp: string | null;
+  country: string;
+  city: string;
+  id_type: string;
+  id_number: string;
+  id_document_url: string;
+  business_name: string | null;
+  business_registration_no: string | null;
+  years_experience: string | null;
+  sourcing_details: string | null;
+  reference_url: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  admin_notes: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  notified_at: string | null;
+  notify_error: string | null;
+  created_at: string;
+}
+
+export interface ListingPayment {
+  id: string;
+  vehicle_id: string;
+  profile_id: string;
+  tier: ListingTier;
+  amount_usd: number;
+  currency: string;
+  provider: string;
+  provider_reference: string;
+  status: 'pending' | 'paid' | 'failed' | 'refunded';
+  paid_at: string | null;
+  created_at: string;
 }
 
 export interface Inspection {
@@ -164,9 +185,11 @@ export interface SparePart {
   compatible_year_to: number | null;
   condition: string;
   price_usd: number;
+  quantity: number;
   port_china: string;
   images: string[];
   description: string | null;
+  is_verified: boolean;
   is_featured: boolean;
   status: VehicleStatus;
   views: number;
