@@ -16,6 +16,7 @@ import {
   VEHICLE_STATUS_LABELS,
 } from '@/lib/constants';
 import { AuthModal } from '@/components/AuthModal';
+import { DutyCheckDropdown } from '@/components/DutyCheckDropdown';
 
 interface VehicleDetailPageProps {
   vehicleId: string;
@@ -576,6 +577,13 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                   </button>
                 </div>
               )}
+
+              {/* GRA official duty check — right under the landed-cost estimate so
+                  buyers can cross-check our figure against the official one without
+                  leaving the listing. */}
+              <div className="flex justify-center mb-4">
+                <DutyCheckDropdown />
+              </div>
 
               {/* Action buttons */}
               <div className="space-y-2.5">
