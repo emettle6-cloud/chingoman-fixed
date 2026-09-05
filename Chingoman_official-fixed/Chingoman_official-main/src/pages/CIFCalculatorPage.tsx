@@ -7,6 +7,7 @@ import { CurrencySelector } from '@/components/CurrencySelector';
 import { useRouter } from '@/context/RouterContext';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { DutyCheckDropdown } from '@/components/DutyCheckDropdown';
 
 export function CIFCalculatorPage() {
   const { navigate } = useRouter();
@@ -62,6 +63,9 @@ export function CIFCalculatorPage() {
         <div className="flex items-center justify-center gap-2 mt-4">
           <span className="text-sm text-slate-500">Show estimate in:</span>
           <CurrencySelector />
+        </div>
+        <div className="flex justify-center mt-5">
+          <DutyCheckDropdown />
         </div>
       </div>
 

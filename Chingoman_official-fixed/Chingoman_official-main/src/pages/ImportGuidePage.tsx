@@ -3,6 +3,7 @@ import {
   BatteryCharging, ShipWheel, Phone, ArrowRight, CheckCircle2,
 } from 'lucide-react';
 import { useRouter } from '@/context/RouterContext';
+import { DutyCheckDropdown } from '@/components/DutyCheckDropdown';
 
 export function ImportGuidePage() {
   const { navigate } = useRouter();
@@ -92,6 +93,18 @@ export function ImportGuidePage() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Official duty check */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-16 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h3 className="font-bold text-slate-900 mb-1">Want the official duty figure?</h3>
+          <p className="text-sm text-slate-500">
+            Our CIF Calculator gives a quick estimate — for the binding customs figure used at Tema port, check the
+            Ghana Revenue Authority's own calculator.
+          </p>
+        </div>
+        <DutyCheckDropdown className="shrink-0" />
       </div>
 
       {/* Key info cards */}

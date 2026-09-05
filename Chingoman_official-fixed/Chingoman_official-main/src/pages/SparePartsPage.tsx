@@ -5,6 +5,7 @@ import type { SparePart } from '@/types';
 import { SparePartCard } from '@/components/SparePartCard';
 import { PART_CATEGORIES } from '@/lib/constants';
 import { useRouter } from '@/context/RouterContext';
+import { RequestItemBanner } from '@/components/RequestItemBanner';
 
 interface Filters {
   category: string;
@@ -144,6 +145,8 @@ export function SparePartsPage() {
           >
             <Plus className="w-4 h-4" /> List a Part
           </button>
+
+          {!loading && <RequestItemBanner itemType="spare_part" className="mt-6" />}
         </div>
       </div>
 

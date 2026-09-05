@@ -5,6 +5,7 @@ import type { Vehicle, VehicleType, SteeringSide } from '@/types';
 import { VehicleCard } from '@/components/VehicleCard';
 import { MAKES, YEAR_RANGE, POWERTRAIN_GROUPS, VEHICLE_TYPE_LABELS } from '@/lib/constants';
 import { useRouter } from '@/context/RouterContext';
+import { RequestItemBanner } from '@/components/RequestItemBanner';
 
 interface Filters {
   make: string;
@@ -158,6 +159,8 @@ export function BrowsePage() {
               </button>
             </div>
           )}
+
+          {!loading && <RequestItemBanner itemType="vehicle" className="mt-6" />}
         </div>
       </div>
 

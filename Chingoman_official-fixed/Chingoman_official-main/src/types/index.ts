@@ -6,6 +6,8 @@ export type UserType = 'buyer' | 'marketer' | 'admin';
 export type PaymentStatus = 'unpaid' | 'paid' | 'waived' | 'refunded';
 export type ListingTier = 'standard' | 'premium';
 export type SellerVerificationStatus = 'none' | 'pending' | 'approved' | 'rejected';
+export type ItemRequestType = 'vehicle' | 'spare_part' | 'other';
+export type ItemRequestStatus = 'new' | 'contacted' | 'fulfilled' | 'closed';
 
 export interface Vehicle {
   id: string;
@@ -172,6 +174,24 @@ export interface Review {
   comment: string | null;
   created_at: string;
   reviewer?: Pick<Profile, 'full_name' | 'avatar_url'>;
+}
+
+export interface ItemRequest {
+  id: string;
+  requester_id: string | null;
+  item_type: ItemRequestType;
+  full_name: string;
+  email: string;
+  phone: string;
+  whatsapp: string | null;
+  description: string;
+  budget_usd: number | null;
+  status: ItemRequestStatus;
+  admin_notes: string | null;
+  notified_at: string | null;
+  notify_error: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SparePart {

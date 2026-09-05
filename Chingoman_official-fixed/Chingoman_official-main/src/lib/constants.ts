@@ -177,3 +177,24 @@ export const PART_CATEGORIES = [
 ] as const;
 
 export const PART_CONDITIONS = ['New', 'Used - Excellent', 'Used - Good', 'Refurbished'] as const;
+
+export const ITEM_REQUEST_TYPE_LABELS: Record<string, string> = {
+  vehicle: 'A Vehicle',
+  spare_part: 'A Spare Part',
+  other: 'Something Else',
+};
+
+// The official Ghana Revenue Authority (via the UNIPASS/ICUMS single window
+// portal) used-vehicle duty calculator. Kept as a named constant so both the
+// CIF Calculator and Import Guide pages link to the exact same official URL.
+export const GRA_DUTY_CALCULATOR_URL =
+  'https://external.unipassghana.com/cl/tm/tax/selectUsedVehicleTaxCalculate.do?decorator=popup&MENU_ID=IIM01S03V02';
+
+export const GRA_DUTY_CHECK_STEPS: string[] = [
+  'Open the official GRA/UNIPASS Used Vehicle Duty Calculator using the link below — it opens in a new tab.',
+  "Enter the vehicle's Chassis Number (VIN) if you have it, or its make, model, and year of manufacture.",
+  'Select the engine capacity (cc) and fuel/powertrain type (petrol, diesel, hybrid, or electric).',
+  'Enter the vehicle value (CIF) — you can use the estimate from our CIF Calculator above as a starting point.',
+  'Submit the form to see the official breakdown: import duty, VAT, NHIL, GETFund levy, and any EV/hybrid concessions.',
+  'Treat this as the authoritative figure for customs purposes — our CIF Calculator gives a quick estimate, but GRA/UNIPASS is the official source.',
+];

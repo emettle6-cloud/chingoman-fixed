@@ -1,13 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
-import { CheckCircle2, XCircle, FileText, ShieldCheck, Star, Trash2, PackageX, RotateCcw, Car, Wrench, Wand2, Pencil, UserCheck, ExternalLink, CreditCard, Gift } from 'lucide-react';
+import { CheckCircle2, XCircle, FileText, ShieldCheck, Star, Trash2, PackageX, RotateCcw, Car, Wrench, Wand2, Pencil, UserCheck, ExternalLink, CreditCard, Gift, PackageSearch, PhoneCall, Archive } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import type { Vehicle, SparePart, SellerVerificationRequest } from '@/types';
-import { VEHICLE_STATUS_LABELS, VEHICLE_STATUS_COLORS } from '@/lib/constants';
+import type { Vehicle, SparePart, SellerVerificationRequest, ItemRequest } from '@/types';
+import { VEHICLE_STATUS_LABELS, VEHICLE_STATUS_COLORS, ITEM_REQUEST_TYPE_LABELS } from '@/lib/constants';
 import { QuickImportPanel } from '@/components/QuickImportPanel';
 import { EditVehicleModal, EditPartModal } from '@/components/AdminEditModal';
 
-type Tab = 'vehicles' | 'parts' | 'verifications' | 'import';
+type Tab = 'vehicles' | 'parts' | 'verifications' | 'requests' | 'import';
 
 export function AdminDashboardPage() {
   const { profile, loading: authLoading } = useAuth();
@@ -26,6 +26,9 @@ export function AdminDashboardPage() {
   const [pendingVerifications, setPendingVerifications] = useState<SellerVerificationRequest[]>([]);
   const [reviewedVerifications, setReviewedVerifications] = useState<SellerVerificationRequest[]>([]);
 
+  const [openItemRequests, setOpenItemRequests] = useState<ItemRequest[]>([]);
+  const [handledItemRequests, setHandledItemRequests] = useState<ItemRequest[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [actioningId, setActioningId] = useState<string | null>(null);
 
@@ -35,6 +38,7 @@ export function AdminDashboardPage() {
       { data: pendingData }, { data: activeData }, { data: unavailableData },
       { data: pendingPartsData }, { data: activePartsData }, { data: unavailablePartsData },
       { data: pendingVerificationData }, { data: reviewedVerificationData },
+      { data: openRequestsData }, { data: handledRequestsData },
     ] = await Promise.all([
       supabase.from('vehicles').select('*').eq('status', 'pending').order('created_at', { ascending: true }),
       supabase.from('vehicles').select('*').eq('status', 'active').order('created_at', { ascending: false }),
@@ -44,6 +48,8 @@ export function AdminDashboardPage() {
       supabase.from('spare_parts').select('*').in('status', ['sold', 'out_of_stock']).order('updated_at', { ascending: false }),
       supabase.from('seller_verification_requests').select('*').eq('status', 'pending').order('created_at', { ascending: true }),
       supabase.from('seller_verification_requests').select('*').in('status', ['approved', 'rejected']).order('reviewed_at', { ascending: false }).limit(50),
+      supabase.from('item_requests').select('*').in('status', ['new', 'contacted']).order('created_at', { ascending: true }),
+      supabase.from('item_requests').select('*').in('status', ['fulfilled', 'closed']).order('updated_at', { ascending: false }).limit(50),
     ]);
     setPending((pendingData as Vehicle[]) ?? []);
     setActive((activeData as Vehicle[]) ?? []);
@@ -53,6 +59,8 @@ export function AdminDashboardPage() {
     setUnavailableParts((unavailablePartsData as SparePart[]) ?? []);
     setPendingVerifications((pendingVerificationData as SellerVerificationRequest[]) ?? []);
     setReviewedVerifications((reviewedVerificationData as SellerVerificationRequest[]) ?? []);
+    setOpenItemRequests((openRequestsData as ItemRequest[]) ?? []);
+    setHandledItemRequests((handledRequestsData as ItemRequest[]) ?? []);
     setLoading(false);
   }, []);
 
@@ -94,6 +102,25 @@ export function AdminDashboardPage() {
     setActioningId(null);
     if (error) { alert(`Could not reject applicant: ${error.message}`); return; }
     loadAll();
+  }
+
+  // ---- Item requests ("can't find what I want") ----
+  async function setItemRequestStatus(id: string, status: 'contacted' | 'fulfilled' | 'closed') {
+    setActioningId(id);
+    const { error } = await supabase.from('item_requests').update({ status }).eq('id', id);
+    setActioningId(null);
+    if (error) { alert(`Could not update request: ${error.message}`); return; }
+    loadAll();
+  }
+
+  async function deleteItemRequest(id: string) {
+    const confirmed = window.confirm('Delete this request? This can\'t be undone.');
+    if (!confirmed) return;
+    setActioningId(id);
+    const { error } = await supabase.from('item_requests').delete().eq('id', id);
+    setActioningId(null);
+    if (!error) loadAll();
+    else alert(`Could not delete request: ${error.message}`);
   }
 
   // ---- Vehicles ----
@@ -240,6 +267,14 @@ export function AdminDashboardPage() {
           }`}
         >
           <UserCheck className="w-4 h-4" /> Seller Verification {pendingVerifications.length > 0 && `(${pendingVerifications.length})`}
+        </button>
+        <button
+          onClick={() => setTab('requests')}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+            tab === 'requests' ? 'border-green-600 text-green-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <PackageSearch className="w-4 h-4" /> Item Requests {openItemRequests.length > 0 && `(${openItemRequests.length})`}
         </button>
         <button
           onClick={() => setTab('import')}
@@ -470,6 +505,86 @@ export function AdminDashboardPage() {
                   }`}>
                     {r.status === 'approved' ? 'Approved' : 'Rejected'}
                   </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : tab === 'requests' ? (
+        <>
+          {/* Open item requests */}
+          <h2 className="text-lg font-semibold text-slate-900 mb-3">Open Requests</h2>
+          {openItemRequests.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500 mb-10">
+              No open "can't find it" requests right now.
+            </div>
+          ) : (
+            <div className="space-y-4 mb-10">
+              {openItemRequests.map((r) => (
+                <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-5">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-slate-900">{r.full_name}</p>
+                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold border bg-blue-50 text-blue-700 border-blue-200">
+                          {ITEM_REQUEST_TYPE_LABELS[r.item_type] ?? r.item_type}
+                        </span>
+                        {r.status === 'contacted' && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold border bg-amber-50 text-amber-700 border-amber-200">
+                            Contacted
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-slate-500 mt-0.5">{r.email}{r.phone ? ` · ${r.phone}` : ''}{r.whatsapp ? ` · WhatsApp: ${r.whatsapp}` : ''}</p>
+                      {r.budget_usd != null && <p className="text-sm text-slate-500">Budget: ${r.budget_usd.toLocaleString()}</p>}
+                      <p className="text-sm text-slate-700 mt-2 max-w-xl whitespace-pre-wrap">{r.description}</p>
+                      {r.notify_error && (
+                        <p className="text-xs text-amber-600 mt-1.5">Note: the notification email failed to send ({r.notify_error}). It's still in this queue regardless.</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                      {r.status === 'new' && (
+                        <button onClick={() => setItemRequestStatus(r.id, 'contacted')} disabled={actioningId === r.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-amber-700 border border-amber-200 hover:bg-amber-50 disabled:opacity-50">
+                          <PhoneCall className="w-4 h-4" /> Mark Contacted
+                        </button>
+                      )}
+                      <button onClick={() => setItemRequestStatus(r.id, 'fulfilled')} disabled={actioningId === r.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50">
+                        <CheckCircle2 className="w-4 h-4" /> Fulfilled
+                      </button>
+                      <button onClick={() => setItemRequestStatus(r.id, 'closed')} disabled={actioningId === r.id} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-50">
+                        <Archive className="w-4 h-4" /> Close
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Recently handled */}
+          <h2 className="text-lg font-semibold text-slate-900 mb-3">Recently Handled</h2>
+          {handledItemRequests.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
+              Nothing handled yet.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {handledItemRequests.map((r) => (
+                <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                  <div>
+                    <p className="font-semibold text-slate-900">{r.full_name} <span className="text-slate-400 font-normal">· {ITEM_REQUEST_TYPE_LABELS[r.item_type] ?? r.item_type}</span></p>
+                    <p className="text-xs text-slate-400 mt-0.5 max-w-lg truncate">{r.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                      r.status === 'fulfilled' ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-300'
+                    }`}>
+                      {r.status === 'fulfilled' ? 'Fulfilled' : 'Closed'}
+                    </span>
+                    <button onClick={() => deleteItemRequest(r.id)} disabled={actioningId === r.id} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-50">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
