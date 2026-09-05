@@ -17,6 +17,7 @@ import {
 } from '@/lib/constants';
 import { AuthModal } from '@/components/AuthModal';
 import { DutyCheckDropdown } from '@/components/DutyCheckDropdown';
+import { RequestItemBanner } from '@/components/RequestItemBanner';
 
 interface VehicleDetailPageProps {
   vehicleId: string;
@@ -445,6 +446,10 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               </div>
             </div>
           </div>
+
+          {/* Not exactly what they wanted? Prompt them to ask for it, right here
+              on the listing itself — not just tucked away on the Browse page. */}
+          <RequestItemBanner itemType="vehicle" />
 
           {/* Seller reviews */}
           {seller && (
