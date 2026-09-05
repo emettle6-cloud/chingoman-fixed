@@ -109,7 +109,7 @@ export function ImportGuidePage() {
 
       {/* Key info cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-16">
-        <InfoCard icon={ShipWheel} title="LHD → RHD" text="Ghana uses RHD. Most Chinese cars are LHD. Budget for conversion or accept LHD for private use." color="text-amber-600 bg-amber-50" />
+        <InfoCard icon={ShipWheel} title="LHD → RHD" text="China and Ghana drives on the right hand side of the road with their cars being LHD. No conversions are required after purchasing cars from China" color="text-amber-600 bg-amber-50" />
         <InfoCard icon={BatteryCharging} title="EV Charging" text="CCS2 is the West Africa standard. Check compatibility on each EV listing. Home chargers recommended." color="text-emerald-600 bg-emerald-50" />
         <InfoCard icon={Lock} title="Escrow Safety" text="Funds held until vehicle clears customs and passes inspection. Never pay sellers directly." color="text-blue-600 bg-blue-50" />
       </div>
